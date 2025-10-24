@@ -54,9 +54,7 @@ Once these parts have been defined and bundled up in a Vendure plugin, we can cr
 
 We can now also set any digital product variants by checking the custom field:
 
-In the storefront, when the customer is checking out, we can use the eligibleShippingMethods query to det
-
-*[Content truncated]*
+In the storefront, when the customer is checking out, we can use the eligibleShippingMethods query to determine which shipping methods are available based on whether any items in the order are digital products.
 
 **Examples:**
 
@@ -209,9 +207,7 @@ This means that there will be multiple ProductVariantPrice entities per variant,
 
 In order to keep prices synchronized across all channels, the example multi-vendor plugin sets the syncPricesAcrossChannels property of the DefaultProductVariantPriceUpdateStrategy to true. Your own multi-vendor implementation may require more sophisticated price synchronization logic, in which case you can implement your own custom ProductVariantPriceUpdateStrategy.
 
-In order to correctly split the Order later, we need to assign each added OrderLine to the co
-
-*[Content truncated]*
+In order to correctly split the Order later, we need to assign each added OrderLine to the correct Seller. This can be done through the OrderLine's customFields or by creating a relationship between OrderLine and Seller entities.
 
 **Examples:**
 
@@ -329,9 +325,7 @@ Environment Variables
 
 Configure your Vendure application to use S3-compatible asset storage by modifying your vendure-config.ts:
 
-IMPORTANT: The configuration uses a conditional approach - when S3_BUCKET is set, it activates S3 storage; otherwise, it falls back to local file storage. T
-
-*[Content truncated]*
+IMPORTANT: The configuration uses a conditional approach - when S3_BUCKET is set, it activates S3 storage; otherwise, it falls back to local file storage. This allows for flexible deployment configurations across different environments.
 
 **Examples:**
 
@@ -469,9 +463,7 @@ To run the preload script, you need to set the --require flag when starting the 
 
 You can do this by adding the following script to your package.json:
 
-Once you have started up your server with t
-
-*[Content truncated]*
+Once you have started up your server with the telemetry configuration, you can view the telemetry data in the respective UIs (Jaeger for traces, Grafana for logs and metrics).
 
 **Examples:**
 
@@ -615,9 +607,7 @@ Google-authenticated customers are managed like any other Vendure Customer:
 
 This means Google users work seamlessly with Vendure's order management, promotions, and all customer workflows.
 
-To test your Google OAuth integrat
-
-*[Content truncated]*
+To test your Google OAuth integration, you can use the Vendure CLI to add the GoogleAuthPlugin to your project and configure it with your Google OAuth credentials.
 
 **Examples:**
 
@@ -705,9 +695,7 @@ Next, in the CmsPlugin, we subscribe to the EventBus and call the new service me
 
 The sync logic is split into two services: a generic service to fetch data, and a specific service to communicate with the CMS.
 
-CmsSyncService orchestrates the synchronization logic. It acts as the bridge between Vendure's internal systems and yo
-
-*[Content truncated]*
+CmsSyncService orchestrates the synchronization logic. It acts as the bridge between Vendure's internal systems and your external CMS, handling data transformation and conflict resolution.
 
 **Examples:**
 
@@ -828,9 +816,7 @@ Vendure Hub is a curated list of high-quality plugins. To be accepted into Vendu
 
 Your plugin package must include a CHANGELOG.md file which looks like this:
 
-The exact form
-
-*[Content truncated]*
+The exact format should follow semantic versioning principles and include clear, descriptive commit messages with issue references where applicable.
 
 **Examples:**
 
@@ -912,9 +898,7 @@ For the client preset plugin, we need to specify a directory (.../ui/gql/) becau
 
 In your Admin UI components, you can now use the graphql() function exported from the generated file to define your GraphQL operations. For example:
 
-Whenever you write a new GraphQL operation, or change an existing one, you will need to re-run the codegen script to generate the types for that oper
-
-*[Content truncated]*
+Whenever you write a new GraphQL operation, or change an existing one, you will need to re-run the codegen script to generate the types for that operation.
 
 **Examples:**
 

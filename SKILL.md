@@ -36,9 +36,11 @@ This launches an interactive wizard:
 
 ```text
 ┌  Let's create a Vendure App ✨
+│
 │◆  How should we proceed?
 │  ● Quick Start (Get up and running in a single step)
 │  ○ Manual Configuration
+│
 └
 ```
 
@@ -251,40 +253,52 @@ export class MinMaxOrderInterceptor implements OrderInterceptor {
 }
 ```
 
-Register in config:
-
-```typescript
-orderOptions: {
-    orderInterceptors: [new MinMaxOrderInterceptor()],
-}
-```
-
 ---
 
-**Pattern 8: GraphQL Query Example**
+**Pattern 8: GraphQL Query - Search Products**
 
-Fetch products with prices:
+Search for products with faceted filtering:
 
-```graphql
-query GetProducts($options: ProductListOptions) {
-    products(options: $options) {
-        items {
-            id
-            name
-            slug
-            featuredAsset {
-                preview
+```typescript
+import gql from 'graphql-tag';
+
+const SEARCH_PRODUCTS = gql`
+    query SearchProducts($input: SearchInput!) {
+        search(input: $input) {
+            totalItems
+            facetValues {
+                count
+                facetValue {
+                    id
+                    name
+                    facet {
+                        id
+                        name
+                    }
+                }
             }
-            variants {
-                id
-                name
-                currencyCode
-                price
-                priceWithTax
+            items {
+                productId
+                productName
+                productAsset {
+                    id
+                    preview
+                }
+                slug
+                featuredAsset {
+                    preview
+                }
+                variants {
+                    id
+                    name
+                    currencyCode
+                    price
+                    priceWithTax
+                }
             }
         }
     }
-}
+`;
 ```
 
 ---

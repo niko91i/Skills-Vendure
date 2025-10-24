@@ -2375,9 +2375,60 @@ Notice that we pass a VendureConfig object into the createTestEnvironment functi
 
 Note: If you need to deeply merge in some custom configuration, use the mergeConfig function which is provided by @vendure/core.
 
-The TestServer needs to be initialized before it can be used. The TestServer.init() method takes an options object which defines how to populate the serve
+The TestServer needs to be initialized before it can be used. The TestServer.init() method takes an options object which defines how to populate the server with data:
 
-*[Content truncated]*
+- **`productsCsvPath`**: Path to CSV file with product data (optional)
+- **`initialData`**: Object defining non-product data like Collections and ShippingMethods
+- **`customerCount`**: Number of fake customers to generate (defaults to 10)
+
+**Test Environment Creation:**
+
+```typescript
+import { createTestEnvironment, testConfig } from '@vendure/testing';
+import { describe, beforeAll, afterAll } from 'vitest';
+import { MyPlugin } from '../my-plugin.ts';
+
+describe('my plugin', () => {
+    const { server, adminClient, shopClient } = createTestEnvironment({
+        ...testConfig,
+        plugins: [MyPlugin],
+    });
+
+    beforeAll(async () => {
+        await server.init({
+            productsCsvPath: path.join(__dirname, 'fixtures/e2e-products.csv'),
+            initialData: myInitialData,
+            customerCount: 2,
+        });
+        await adminClient.asSuperAdmin();
+    }, 60000);
+
+    afterAll(async () => {
+        await server.destroy();
+    });
+});
+```
+
+**Writing Tests:**
+
+```typescript
+import gql from 'graphql-tag';
+import { it, expect } from 'vitest';
+
+it('myNewQuery returns the expected result', async () => {
+    adminClient.asSuperAdmin();
+    const query = gql`
+        query MyNewQuery($id: ID!) {
+            myNewQuery(id: $id) {
+                field1
+                field2
+            }
+        }
+    `;
+    const result = await adminClient.query(query, { id: 123 });
+    expect(result.myNewQuery).toEqual({ /* ... */ });
+});
+```
 
 **Examples:**
 
@@ -2621,9 +2672,51 @@ This means that if one instance sets a cache entry, it will be available to all 
 
 The CacheService can be injected into any service, resolver, strategy or configurable operation.
 
-The data stored in the cache must be serializable. This means you cannot store instances of 
+The data stored in the cache must be serializable. This means you cannot store instances of classes, functions, or other non-serializable data types.
 
-*[Content truncated]*
+This restriction means you're limited to storing basic JavaScript types like strings, numbers, booleans, arrays, and plain objects. Complex class instances and function references cannot be persisted in the cache.
+
+**Cache Key Naming Conventions:**
+
+Proper key naming prevents conflicts across your application. The recommended approach combines class and method names as a namespace prefix with unique identifiers specific to the cached data.
+
+Example pattern:
+```typescript
+getVariantIds(productId: ID): Promise<ID[]> {
+    const cacheKey = `ProductService.getVariantIds:${productId}`;
+    // ... cache operations
+}
+```
+
+**Cache Eviction Strategies:**
+
+Two primary eviction mechanisms exist:
+
+**Time-to-Live (TTL)**: Set when storing entries, determining how long they persist before automatic removal.
+
+```typescript
+await this.cacheService.set(cacheKey, newValue, { ttl: 60 * 1000 }); // 1 minute
+```
+
+**Manual Deletion**: Remove entries programmatically when needed.
+
+```typescript
+await this.cacheService.delete(cacheKey);
+```
+
+**Cache Tags Usage:**
+
+Tags enable batch invalidation of related entries without knowing individual keys:
+
+```typescript
+const cacheKey = `ProductService.getVariantIds:${productId}`;
+await this.cacheService.set(cacheKey, newValue, {
+    tags: [`Product:${productId}`]
+});
+
+// Later, invalidate all Product-related entries
+await this.cacheService.invalidateTags([`Product:${productId}`]);
+```
 
 **Examples:**
 
@@ -2862,9 +2955,32 @@ An array of localized labels for the field. These are used in the Dashboard to l
 
 An array of localized descriptions for the field. These are used in the Dashboard to describe the field.
 
-Whether the custom field is available via t
+Whether the custom field is available via the GraphQL APIs or only accessible internally within TypeScript plugins.
 
-*[Content truncated]*
+**Available via GraphQL APIs:**
+- Set to `false` to make the field `internal: true`
+- Internal fields are inaccessible via GraphQL but usable in TypeScript code
+- Defaults to `false` (field is accessible via GraphQL)
+
+**Common Custom Field Properties:**
+
+**`name`**: The name of the field. Used as the column name in the database and as the GraphQL field name. Should not contain spaces and by convention should be camelCased.
+
+**`type`**: The type of data that will be stored in the field. Available types include: `string`, `localeString`, `int`, `float`, `boolean`, `datetime`, `relation`, `text`, `localeText`, and `struct`.
+
+**`list`**: If set to `true`, the field will be an array of the specified type. Defaults to `false`. Setting a custom field as a list affects GraphQL types, dashboard UI, and database storage (simple-json for primitives).
+
+**`label`**: An array of localized labels for the field, used in the Dashboard to label the field.
+
+**`description`**: An array of localized descriptions for the field, used in the Dashboard to describe the field.
+
+**`nullable`**: Determines if a custom field can store null values in the database. If set to `false`, a `defaultValue` must be provided to prevent database errors.
+
+**`internal`**: If set to `true`, makes the field inaccessible via GraphQL APIs but usable within TypeScript plugins. Defaults to `false`.
+
+**`readonly`**: If set to `true`, prevents modification of the field value via the GraphQL API.
+
+**`ui`**: Object for customizing the form input component in the Admin UI. Can specify `component`, `tab`, and other UI-related options.
 
 **Examples:**
 
@@ -2992,9 +3108,84 @@ In order to tell TypeScript about the existence of this new variable, you can ad
 
 You can then use the environment variable in your config file:
 
-In production, the way you mana
+In production, the way you manage environment variables depends on your hosting provider. Consult the Production Configuration guide for specific deployment strategies.
 
-*[Content truncated]*
+**Declaring Environment Variables in TypeScript:**
+
+Define variables in `src/environment.d.ts` for TypeScript support:
+
+```typescript
+export {};
+
+declare global {
+    namespace NodeJS {
+        interface ProcessEnv {
+            APP_ENV: string;
+            COOKIE_SECRET: string;
+            SUPERADMIN_USERNAME: string;
+            SUPERADMIN_PASSWORD: string;
+            MY_API_KEY: string;
+        }
+    }
+}
+```
+
+Then reference them safely in your config:
+
+```typescript
+export const config: VendureConfig = {
+  plugins: [
+    MyPlugin.init({
+      apiKey: process.env.MY_API_KEY,
+    }),
+  ],
+  // ...
+}
+```
+
+**Splitting Config Across Files:**
+
+For large configurations, especially with multiple plugins, separate concerns into dedicated files:
+
+```typescript
+// src/vendure-config-plugins.ts
+import { AssetServerPlugin, DefaultJobQueuePlugin, VendureConfig } from '@vendure/core';
+import { ElasticsearchPlugin } from '@vendure/elasticsearch-plugin';
+import { EmailPlugin } from '@vendure/email-plugin';
+import { CustomPlugin } from './plugins/custom-plugin';
+
+export const plugins: VendureConfig['plugins'] = [
+  CustomPlugin,
+  AssetServerPlugin.init({
+      route: 'assets',
+      assetUploadDir: path.join(__dirname, 'assets'),
+      port: 5002,
+  }),
+  DefaultJobQueuePlugin,
+  ElasticsearchPlugin.init({
+      host: 'localhost',
+      port: 9200,
+  }),
+  EmailPlugin.init({
+    // ...lots of lines of config
+  }),
+];
+```
+
+Import and compose in your main config:
+
+```typescript
+// src/vendure-config.ts
+import { VendureConfig } from '@vendure/core';
+import { plugins } from './vendure-config-plugins';
+
+export const config: VendureConfig = {
+  plugins,
+  // ...
+}
+```
+
+This modular approach keeps configuration maintainable as your system grows.
 
 **Examples:**
 
@@ -3281,9 +3472,60 @@ Notice that we pass a VendureConfig object into the createTestEnvironment functi
 
 Note: If you need to deeply merge in some custom configuration, use the mergeConfig function which is provided by @vendure/core.
 
-The TestServer needs to be initialized before it can be used. The TestServer.init() method takes an options object which defines how to populate the serve
+The TestServer needs to be initialized before it can be used. The TestServer.init() method takes an options object which defines how to populate the server with data:
 
-*[Content truncated]*
+- **`productsCsvPath`**: Path to CSV file with product data (optional)
+- **`initialData`**: Object defining non-product data like Collections and ShippingMethods
+- **`customerCount`**: Number of fake customers to generate (defaults to 10)
+
+**Test Environment Creation:**
+
+```typescript
+import { createTestEnvironment, testConfig } from '@vendure/testing';
+import { describe, beforeAll, afterAll } from 'vitest';
+import { MyPlugin } from '../my-plugin.ts';
+
+describe('my plugin', () => {
+    const { server, adminClient, shopClient } = createTestEnvironment({
+        ...testConfig,
+        plugins: [MyPlugin],
+    });
+
+    beforeAll(async () => {
+        await server.init({
+            productsCsvPath: path.join(__dirname, 'fixtures/e2e-products.csv'),
+            initialData: myInitialData,
+            customerCount: 2,
+        });
+        await adminClient.asSuperAdmin();
+    }, 60000);
+
+    afterAll(async () => {
+        await server.destroy();
+    });
+});
+```
+
+**Writing Tests:**
+
+```typescript
+import gql from 'graphql-tag';
+import { it, expect } from 'vitest';
+
+it('myNewQuery returns the expected result', async () => {
+    adminClient.asSuperAdmin();
+    const query = gql`
+        query MyNewQuery($id: ID!) {
+            myNewQuery(id: $id) {
+                field1
+                field2
+            }
+        }
+    `;
+    const result = await adminClient.query(query, { id: 123 });
+    expect(result.myNewQuery).toEqual({ /* ... */ });
+});
+```
 
 **Examples:**
 
@@ -3410,9 +3652,24 @@ As well as product data, other initialization data can be populated using the In
 
 The @vendure/core package exposes a populate() function which can be used along with the data formats described above to populate your Vendure server:
 
-When removing the DefaultJobQueuePlugin from the plugins list as in the code snippet above, one should manually rebuild the search index in order for the newly added products to appear. In the Dashboard, this can be done by navigating to the product list view and 
+When removing the DefaultJobQueuePlugin from the plugins list as in the code snippet above, one should manually rebuild the search index in order for the newly added products to appear. In the Dashboard, this can be done by navigating to the product list view and clicking the button in the top right.
 
-*[Content truncated]*
+The interface provides a dedicated button in the top-right corner of the product list page for triggering a reindex operation.
+
+**Programmatic Search Index Rebuild:**
+
+For scripts, use the `SearchService`:
+
+```typescript
+const searchService = app.get(SearchService);
+await searchService.reindex(ctx);
+```
+
+**Key Import Considerations:**
+
+- **Remove JobQueuePlugin** during population to avoid generating unnecessary jobs
+- **Use specialized import services** (`FastImporterService`, `Importer`) rather than standard service-layer services for bulk imports, as they are optimized for speed and omit unnecessary checks
+- **Rebuild search index** after import completion to ensure newly added products appear in search results
 
 **Examples:**
 

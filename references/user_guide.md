@@ -46,11 +46,23 @@ Next, we need to transition the order to the ArrangingPayment state. This state 
 
 At this point, your storefront will use an integration with the payment provider to collect the customer's payment details, and then the exact sequence of API calls will depend on the payment integration.
 
-The addPaymentToOrder mutation is the general-purpose mutation for adding a payment to an order. It accepts a method argument which must corresponde to the code of the selected payment method, and a metadata argument which is a JSON object containing any additional information required by that particular integration.
+The addPaymentToOrder mutation is the general-purpose mutation for adding a payment to an order. It accepts a method argument which must correspond to the code of the selected payment method, and a metadata argument which is a JSON object containing any additional information required by that particular integration.
 
-For example, the demo data populated in a new Vendure installation includes a "St
+For example, the demo data populated in a new Vendure installation includes a "Standard Payment" method using the `dummyPaymentHandler` to simulate payment processing. The metadata object can include flags like `shouldDecline` and `shouldError` for testing purposes.
 
-*[Content truncated]*
+**Supported Payment Providers:**
+
+Vendure provides dedicated plugins for major payment providers:
+
+1. **Stripe** - See the Stripe plugin documentation for integration details
+2. **Braintree** - See the Braintree plugin documentation for setup instructions
+3. **Mollie** - See the Mollie plugin documentation for configuration
+
+**Other Payment Providers:**
+
+For payment providers beyond Stripe, Braintree, and Mollie, refer to the broader Payment guide which covers custom payment integrations and implementing your own payment handlers.
+
+The key point is that the exact sequence of API calls will depend on the payment integration you've selected for your storefront.
 
 **Examples:**
 
@@ -490,10 +502,32 @@ You can then have Claude Code use the skill with a prompt like:
 The individual files in the skill contain the exact same content as the full prompt above, but are more easily reused and can be more token-efficient
 
 It is very likely you'll still need to do some manual cleanup after an AI-assisted migration. You might run into things like:
+- TypeScript compilation errors requiring minor adjustments
+- Component imports needing path corrections
+- Hook usage requiring refinement
+- Permission checks needing migration to the new system
 
-If you would rather do a full manual m
+**Manual Migration:**
 
-*[Content truncated]*
+If you would rather do a full manual migration, the guide provides comprehensive component mapping across major features:
+
+**Forms:**
+Replace Angular's `vdr-form-field` with `FormFieldWrapper` using react-hook-form. Structure layouts with `DetailFormGrid` for two-column grids and use `space-y-6` for vertical spacing between sections.
+
+**Custom Field Inputs:**
+Migrate from `FormInputComponent` to `DashboardFormComponent`. The new component receives `value`, `onChange`, and `name` props, with access to form context via React hooks.
+
+**List Pages:**
+Transform `TypedBaseListComponent` into the `ListPage` component, which auto-generates columns from GraphQL queries. Customize using `customizeColumns`, `defaultVisibility`, and `defaultColumnOrder` properties.
+
+**Detail Pages:**
+Replace `TypedBaseDetailComponent` with the `useDetailPage()` hook. Structure layouts using `PageLayout`, `PageBlock`, and `DetailFormGrid` components for consistent styling.
+
+**Navigation & Actions:**
+Configure menu items via `navMenuItem` properties on routes. Define action bar items through the `actionBarItems` array for page-level actions.
+
+**Page Blocks & Widgets:**
+Implement custom components as page blocks with positioning controls. Create dashboard widgets using the `DashboardBaseWidget` wrapper component.
 
 **Examples:**
 
@@ -727,9 +761,20 @@ For example, let's filter the results to only include products which have the "N
 
 Here's how we can use this information to filter the results:
 
-In the next example, rather than passing each individual variable (skip, take, term) as a separate argument, we are passing the entire SearchInput object as a variable. This allows us more 
+In the next example, rather than passing each individual variable (skip, take, term) as a separate argument, we are passing the entire SearchInput object as a variable. This allows us more flexibility in how we use the query, as we can easily add or remove properties from the input object without having to change the query itself.
 
-*[Content truncated]*
+**Combining Multiple Filters:**
+
+Multiple facet value filters can be combined using `and` or `or` logic:
+
+- **AND logic**: `{ "facetValueFilters": [{ "and": "9" }, { "and": "11" }] }` - Returns products that have BOTH facet values
+- **OR logic**: `{ "facetValueFilters": [{ "or": ["11", "15"] }] }` - Returns products that have EITHER facet value
+
+**Listing Custom Product Data:**
+
+For custom fields on `Product` or `ProductVariant` entities, the basic `DefaultSearchPlugin` has limitations. This plugin is designed to be a minimal and simple search implementation and cannot index custom data.
+
+The `ElasticsearchPlugin` serves as a powerful alternative, offering advanced features which allow you to index custom data. It functions as a drop-in replacement for the `DefaultSearchPlugin` - you can swap plugins in your `vendure-config.ts` configuration without extensive modifications.
 
 **Examples:**
 
@@ -869,9 +914,27 @@ The filePath property is relative to the directory specified in the extensionPat
 
 Now run your app with npm run dev. Wait for it to compile the Admin UI extensions.
 
-Now go to the Admin UI app in your browser and log in. You should now be able to manually enter the URL http://localhost:3000/admin/extensions/greeter and you should see the component with the "Hello!" heade
+Now go to the Admin UI app in your browser and log in. You should now be able to manually enter the URL http://localhost:3000/admin/extensions/greeter and you should see the component with the "Hello!" header displayed.
 
-*[Content truncated]*
+**Links:**
+
+For navigation between pages, Angular uses the `[routerLink]` directive while React uses a `Link` component. Paths should be prefixed with `/extensions/`.
+
+**Route Parameters:**
+
+Routes can accept dynamic parameters using colon notation (e.g., `:id`). Angular components access these via `ActivatedRoute`, while React components use the `useRouteParams()` hook to retrieve parameter values.
+
+**Injecting Services:**
+
+The Admin UI provides built-in services like `NotificationService`. Angular uses constructor injection or the `inject()` function, whereas React applications use the `useInjector()` hook to access services.
+
+**Page Metadata:**
+
+The `PageMetadataService` (Angular) and `usePageMetadata()` hook (React) allow dynamic updates to page titles and breadcrumbs during component lifecycle.
+
+**Advanced: Overriding Built-in Routes:**
+
+From version 2.2.0 onward, developers can override built-in routes by setting the prefix to an empty string and matching existing route paths. This enables complete customization of default Admin UI pages.
 
 **Examples:**
 
@@ -1000,9 +1063,19 @@ Here's an example of how to use the onClick property to perform a GraphQL mutati
 
 In this example, clicking the ActionBar button triggers a GraphQL mutation. The context.dataService is utilized to execute the mutation. It can also be employed to retrieve additional information about the current order if needed. The context.route is used to extract the ID of the current order from the URL.
 
-The utility function firstValueFrom from the RxJS library is used in 
+The utility function `firstValueFrom` from the RxJS library is used to convert Observables to Promises. This conversion allows the use of the `await` keyword to pause execution until the Observable emits its first value or completes.
 
-*[Content truncated]*
+**Setting Visibility & Disabled State:**
+
+The `buttonState` function lets developers manage visibility and disabled status through Observable streams, with access to entity data via `context.entity$`. This enables dynamic button behavior based on the current state of the page.
+
+**Restricting Access by Permissions:**
+
+The `requiresPermission` property restricts button visibility to users holding specified permissions. This ensures that only authorized users can see and interact with certain ActionBar buttons.
+
+**Dropdown Menu Items:**
+
+Introduced in v2.2.0, the `addActionBarDropdownMenuItem` function provides a space-efficient alternative to regular buttons. Dropdown items support optional visual dividers using the `hasDivider` property for better organization.
 
 **Examples:**
 
@@ -1154,15 +1227,46 @@ If you have a build step, you can import it into your app like this:
 
 If your extension does not have a build step, you can still include the theme stylesheet as a local resource:
 
-The @vendure/ui-d
+```html
+<link rel="stylesheet" href="/admin/assets/styles/theme.css">
+```
 
-*[Content truncated]*
+**UiDevkitClient:**
+
+The `@vendure/ui-devkit` package provides helper methods for extensions to interact with the Admin UI infrastructure through the UiDevkitClient. This client enables extensions to:
+
+- Execute GraphQL queries and mutations without requiring a separate HTTP or GraphQL client, benefiting from the Admin UI's client-side caching
+- Display toast notifications to users
+
+**setTargetOrigin:**
+
+The UiDevkitClient uses the browser's postMessage API to facilitate communication between the Admin UI and your extension. Due to security constraints, this channel restricts communication to a specific domain where your extension operates.
+
+To configure this, use the `setTargetOrigin` function:
+
+```javascript
+setTargetOrigin('http://my-domain.com');
+```
+
+If misconfigured, you'll encounter an error message regarding postMessage execution failure on DOMWindow.
+
+**Usage Approaches:**
+
+For applications with build processes, you can import and use functions directly:
+
+```javascript
+import { graphQlMutation, notify } from '@vendure/ui-devkit';
+```
+
+For extensions without build steps, the UiDevkitClient can be included as a local resource, exposing a `VendureUiClient` global object accessible in plain JavaScript.
 
 **Examples:**
 
 Example 1 (bash):
 ```bash
-yarn add @vendure/ui-devkit# ornpm install @vendure/ui-devkit
+yarn add @vendure/ui-devkit
+# or
+npm install @vendure/ui-devkit
 ```
 
 Example 2 (text):

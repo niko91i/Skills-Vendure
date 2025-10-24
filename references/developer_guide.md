@@ -146,20 +146,35 @@ Reference: https://owasp.org/Top10/A07_2021-Identification_and_Authentication_Fa
 
 Reference: https://owasp.org/Top10/A08_2021-Software_and_Data_Integrity_Failures/
 
-Reference: https://owas
+Reference: https://owasp.org/Top10/A09_2021-Security_Logging_and_Monitoring_Failures/
 
-*[Content truncated]*
+Reference: https://owasp.org/Top10/A10_2021-Server-Side_Request_Forgery_(SSRF)/
+
+The security page provides a comprehensive assessment mapping Vendure's built-in protections against all 10 OWASP vulnerabilities, including cryptographic defaults (bcrypt with 12 salt rounds), parameterized database queries, role-based access control, and GraphQL validation safeguards.
 
 **Examples:**
 
 Example 1 (ts):
 ```ts
-import { VendureConfig } from '@vendure/core';export const config: VendureConfig = {  authOptions: {    tokenMethod: ['bearer', 'cookie'],    superadminCredentials: {      identifier: process.env.SUPERADMIN_USERNAME,      password: process.env.SUPERADMIN_PASSWORD,    },  },  // ...};
+import { VendureConfig } from '@vendure/core';
+
+export const config: VendureConfig = {
+  authOptions: {
+    tokenMethod: ['bearer', 'cookie'],
+    superadminCredentials: {
+      identifier: process.env.SUPERADMIN_USERNAME,
+      password: process.env.SUPERADMIN_PASSWORD,
+    },
+  },
+  // ...
+};
 ```
 
 Example 2 (sh):
 ```sh
-npm install @vendure/harden-plugin# oryarn add @vendure/harden-plugin
+npm install @vendure/harden-plugin
+# or
+yarn add @vendure/harden-plugin
 ```
 
 Example 3 (ts):
@@ -376,9 +391,48 @@ Here are some examples of using the Find API:
 
 Further examples can be found in the TypeORM Find Options documentation.
 
-When the Find API is not sufficient, the QueryBuilder API can be used to construct more complex queries. For instance, if you want to have a more complex WHERE clause than what can be achieved with the Find API, or if you want 
+When the Find API is not sufficient, the QueryBuilder API can be used to construct more complex queries. For instance, if you want to have a more complex WHERE clause than what can be achieved with the Find API, or if you want to use sub-queries or other advanced SQL features.
 
-*[Content truncated]*
+**QueryBuilder API Usage:**
+
+The QueryBuilder provides more granular control over database queries but requires explicit relation joins:
+
+```typescript
+const products = await this.connection.getRepository(ctx, Product)
+  .createQueryBuilder('product')
+  .leftJoinAndSelect('product.variants', 'variant')
+  .leftJoinAndSelect('variant.prices', 'price')
+  .where('product.deletedAt IS NULL')
+  .andWhere('variant.enabled = :enabled', { enabled: true })
+  .getMany();
+```
+
+**Critical Pattern for Relations:**
+
+A significant challenge arises when relations aren't explicitly joined—code compiles successfully but fails at runtime. Always explicitly specify relations through the `relations` option in the Find API or using `leftJoinAndSelect()` in QueryBuilder queries.
+
+**Entity Hydration Solution:**
+
+The `EntityHydrator` class addresses scenarios where you receive entities from Vendure without controlling the initial database fetch. It ensures specific relations are loaded before use:
+
+```typescript
+import { EntityHydrator } from '@vendure/core';
+
+@Injectable()
+export class MyService {
+  constructor(private entityHydrator: EntityHydrator) {}
+
+  async processProduct(ctx: RequestContext, product: Product) {
+    // Ensure the variants relation is loaded
+    await this.entityHydrator.hydrate(ctx, product, {
+      relations: ['variants', 'variants.prices'],
+    });
+
+    // Now we can safely access product.variants
+    const variantCount = product.variants.length;
+  }
+}
+```
 
 **Examples:**
 
@@ -453,9 +507,38 @@ Here's how a response would look in both the success and error result cases:
 
 If you are writing a plugin which deals with internal Vendure service methods that may return ErrorResults, then you can use the isGraphQlErrorResult() function to check whether the result is an ErrorResult:
 
-B
+```typescript
+import { Injectable } from '@nestjs/common';
+import { isGraphQlErrorResult, Order, OrderService, RequestContext } from '@vendure/core';
 
-*[Content truncated]*
+@Injectable()
+export class MyService {
+  constructor(private orderService: OrderService) {}
+
+  async myMethod(ctx: RequestContext, order: Order, newState: OrderState) {
+    const transitionResult = await this.orderService.transitionToState(
+      ctx,
+      order.id,
+      newState
+    );
+
+    if (isGraphQlErrorResult(transitionResult)) {
+      // Handle the error
+      throw transitionResult;
+    }
+
+    // Success - transitionResult is now typed as Order
+    return transitionResult;
+  }
+}
+```
+
+**Best Practices:**
+
+1. **Client-Side**: Use exhaustive switch statements with `__typename` to handle all possible result types
+2. **Plugin Code**: Use `isGraphQlErrorResult()` to differentiate ErrorResults from successful responses
+3. **Type Safety**: Leverage TypeScript's type narrowing after error checks
+4. **Error Propagation**: Throw ErrorResults in plugin code to propagate them up to GraphQL responses
 
 **Examples:**
 
@@ -571,9 +654,18 @@ To make it all work, ensure that the DataLoaderService is loaded in your plugin 
 
 Dataloaders map the result in the same order as the ids you send to the dataloader. Dataloaders expect the same order and array size in the return result.
 
-In other words: ensure that the order of your returned 
+In other words: ensure that the order of your returned results matches the input IDs exactly, and include all values without omission. This is critical for correct dataloader operation.
 
-*[Content truncated]*
+**Performance Impact:**
+
+When properly implemented, dataloaders transform observable query patterns. Before optimization, you'll see cascading queries for each item; after implementation, you'll observe a single query using multiple IDs. This batching approach provides substantial performance improvements, particularly under high system load with larger datasets.
+
+**Key Implementation Points:**
+
+1. **Request-Scoped**: DataLoaderService operates at the GraphQL request scope level
+2. **Channel-Specific**: Dataloaders are organized by channel for multi-tenant support
+3. **No CustomField Relations Needed**: CustomField relations are automatically included in root entity queries
+4. **Service Registration**: The DataloaderService must be registered as a provider in your plugin configuration
 
 **Examples:**
 
@@ -704,9 +796,20 @@ You can read more about this issue in typeorm/issues/7054
 
 Now we'll dive into what's going on under the hood.
 
-Vendure expos
+Vendure exposes three primary migration functions:
 
-*[Content truncated]*
+- **`generateMigration()`** - Creates new migration files based on schema differences
+- **`runMigrations()`** - Executes pending migrations
+- **`revertLastMigration()`** - Rolls back the last applied migration
+
+TypeORM tracks applied migrations in a database `migrations` table to prevent duplicate execution.
+
+**Key Best Practices:**
+
+1. **Disable synchronize in production**: Set `synchronize: false` in `dbConnectionOptions` to prevent automatic schema updates
+2. **Always backup before migrating**: Especially critical for MySQL/MariaDB due to lack of transaction support
+3. **Review generated migrations**: Verify the SQL commands before running them
+4. **Test migrations on staging**: Always test migration scripts on a staging environment first
 
 **Examples:**
 
@@ -778,15 +881,52 @@ Adding this plugin to your Vendure config plugins array will now apply these mid
 
 Apollo Server (the underlying GraphQL server library used by Vendure) allows you to define plugins which can be used to hook into various stages of the GraphQL request lifecycle and perform tasks such as data transformation. These are defined via the apiOptions.apolloServerPlugins config property.
 
-A "resolver" is a GraphQL concept, and refers to a function which is respon
+A "resolver" is a GraphQL concept, and refers to a function which is responsible for returning the data for a particular field. In Vendure's implementation, resolvers can be individual functions or classes containing multiple resolver functions.
 
-*[Content truncated]*
+**How Resolvers Work:**
+
+For every GraphQL query or mutation, there's a corresponding resolver function that handles data retrieval or updates:
+
+```typescript
+import { Query, Resolver, Args } from '@nestjs/graphql';
+import { Ctx, RequestContext, ProductService } from '@vendure/core';
+
+@Resolver()
+export class ShopProductsResolver {
+  constructor(private productService: ProductService) {}
+
+  @Query()
+  product(@Ctx() ctx: RequestContext, @Args() args: { id: string }) {
+    return this.productService.findOne(ctx, args.id);
+  }
+}
+```
+
+**Key Decorators:**
+
+- `@Resolver()` - Marks a class as handling GraphQL operations
+- `@Query()` - Designates methods that resolve query operations
+- `@Mutation()` - Designates methods that resolve mutation operations
+- `@Ctx()` - Injects the RequestContext object
+- `@Args()` - Injects query/mutation arguments
+- `@ResolveField()` - Handles relationships between types
+- `@Parent()` - Accesses the parent object being resolved
+
+**Best Practice:**
+
+Resolver functions should be kept as simple as possible, and the bulk of the business logic should be delegated to the service layer. This separation of concerns keeps the API layer lightweight and maintainable.
 
 **Examples:**
 
 Example 1 (graphql):
 ```graphql
-query {    product(id: "1") {        id        name        description    }}
+query {
+  product(id: "1") {
+    id
+    name
+    description
+  }
+}
 ```
 
 Example 2 (json):
@@ -1394,20 +1534,35 @@ Reference: https://owasp.org/Top10/A07_2021-Identification_and_Authentication_Fa
 
 Reference: https://owasp.org/Top10/A08_2021-Software_and_Data_Integrity_Failures/
 
-Reference: https://owas
+Reference: https://owasp.org/Top10/A09_2021-Security_Logging_and_Monitoring_Failures/
 
-*[Content truncated]*
+Reference: https://owasp.org/Top10/A10_2021-Server-Side_Request_Forgery_(SSRF)/
+
+The security page provides a comprehensive assessment mapping Vendure's built-in protections against all 10 OWASP vulnerabilities, including cryptographic defaults (bcrypt with 12 salt rounds), parameterized database queries, role-based access control, and GraphQL validation safeguards.
 
 **Examples:**
 
 Example 1 (ts):
 ```ts
-import { VendureConfig } from '@vendure/core';export const config: VendureConfig = {  authOptions: {    tokenMethod: ['bearer', 'cookie'],    superadminCredentials: {      identifier: process.env.SUPERADMIN_USERNAME,      password: process.env.SUPERADMIN_PASSWORD,    },  },  // ...};
+import { VendureConfig } from '@vendure/core';
+
+export const config: VendureConfig = {
+  authOptions: {
+    tokenMethod: ['bearer', 'cookie'],
+    superadminCredentials: {
+      identifier: process.env.SUPERADMIN_USERNAME,
+      password: process.env.SUPERADMIN_PASSWORD,
+    },
+  },
+  // ...
+};
 ```
 
 Example 2 (sh):
 ```sh
-npm install @vendure/harden-plugin# oryarn add @vendure/harden-plugin
+npm install @vendure/harden-plugin
+# or
+yarn add @vendure/harden-plugin
 ```
 
 Example 3 (ts):
@@ -1470,9 +1625,20 @@ You can read more about this issue in typeorm/issues/7054
 
 Now we'll dive into what's going on under the hood.
 
-Vendure expos
+Vendure exposes three primary migration functions:
 
-*[Content truncated]*
+- **`generateMigration()`** - Creates new migration files based on schema differences
+- **`runMigrations()`** - Executes pending migrations
+- **`revertLastMigration()`** - Rolls back the last applied migration
+
+TypeORM tracks applied migrations in a database `migrations` table to prevent duplicate execution.
+
+**Key Best Practices:**
+
+1. **Disable synchronize in production**: Set `synchronize: false` in `dbConnectionOptions` to prevent automatic schema updates
+2. **Always backup before migrating**: Especially critical for MySQL/MariaDB due to lack of transaction support
+3. **Review generated migrations**: Verify the SQL commands before running them
+4. **Test migrations on staging**: Always test migration scripts on a staging environment first
 
 **Examples:**
 
@@ -2713,9 +2879,38 @@ Here's how a response would look in both the success and error result cases:
 
 If you are writing a plugin which deals with internal Vendure service methods that may return ErrorResults, then you can use the isGraphQlErrorResult() function to check whether the result is an ErrorResult:
 
-B
+```typescript
+import { Injectable } from '@nestjs/common';
+import { isGraphQlErrorResult, Order, OrderService, RequestContext } from '@vendure/core';
 
-*[Content truncated]*
+@Injectable()
+export class MyService {
+  constructor(private orderService: OrderService) {}
+
+  async myMethod(ctx: RequestContext, order: Order, newState: OrderState) {
+    const transitionResult = await this.orderService.transitionToState(
+      ctx,
+      order.id,
+      newState
+    );
+
+    if (isGraphQlErrorResult(transitionResult)) {
+      // Handle the error
+      throw transitionResult;
+    }
+
+    // Success - transitionResult is now typed as Order
+    return transitionResult;
+  }
+}
+```
+
+**Best Practices:**
+
+1. **Client-Side**: Use exhaustive switch statements with `__typename` to handle all possible result types
+2. **Plugin Code**: Use `isGraphQlErrorResult()` to differentiate ErrorResults from successful responses
+3. **Type Safety**: Leverage TypeScript's type narrowing after error checks
+4. **Error Propagation**: Throw ErrorResults in plugin code to propagate them up to GraphQL responses
 
 **Examples:**
 

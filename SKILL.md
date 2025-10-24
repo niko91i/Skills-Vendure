@@ -355,24 +355,12 @@ export const config: VendureConfig = {
 
 ## Key Concepts
 
-### Money & Currency
-- **Integer Storage**: All monetary values stored as integers (100 = $1.00)
-- **Why**: Avoids floating-point rounding errors
-- **GraphQL**: Uses custom `Money` scalar type
-- **Display**: Divide by 100 and format with `Intl.NumberFormat`
-- **Multi-Currency**: Set currencies at Channel level, prices stored per variant per currency
+Core Vendure architecture concepts (see `references/core_concepts.md` for detailed explanations):
 
-### Order State Machine
-- **Default States**: AddingItems → ArrangingPayment → PaymentAuthorized → PaymentSettled → PartiallyShipped → Shipped → PartiallyDelivered → Delivered
-- **Customizable**: Define custom states and transitions via `OrderProcess`
-- **Interceptors**: Use `OrderInterceptor` to validate/prevent state transitions
-- **Processes**: Combine `defaultOrderProcess` with custom processes
-
-### Payment Flow
-- **Two-Step**: Authorize (checkout) → Settle (fulfillment)
-- **Single-Step**: Authorize + Settle at checkout
-- **Handler**: Implement `PaymentMethodHandler` for provider integration
-- **Methods**: Create PaymentMethod entities in Admin UI
+- **Money & Currency** - Integer storage (100 = $1.00) avoids floating-point errors, multi-currency support at Channel level
+- **Order State Machine** - Customizable workflow (AddingItems → Delivered) via OrderProcess with interceptors
+- **Payment Flow** - Two-step (authorize/settle) or single-step via PaymentMethodHandler
+- **Collections** - Organize products with filters, inheritance, and custom CollectionFilter logic
 
 ### Custom Fields
 - Add custom properties to entities (Product, Order, Customer, etc.)
@@ -385,13 +373,6 @@ export const config: VendureConfig = {
 - **Lifecycle**: `onApplicationBootstrap`, `onApplicationShutdown` hooks
 - **Strategies**: Use `InjectableStrategy` pattern for extensibility
 - **Best Practice**: Always provide default implementations
-
-### Collections
-- **Purpose**: Organize products into categories/hierarchies
-- **Filters**: Determine which product variants belong to collection
-- **Built-in Filters**: Facet values, product name, variant name
-- **Custom Filters**: Create with `CollectionFilter` class
-- **Inheritance**: Child collections can inherit parent filters
 
 ## Reference Files
 

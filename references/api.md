@@ -10619,9 +10619,7 @@ On the other hand, for code that does not run in the context of a GraphQL/REST r
 
 Such situations include function processed by the JobQueue or stand-alone scripts which make use of Vendure internal services.
 
-If there is already a RequestContext object available, you should pass it in as the first argument in order to create transactional context as
-
-*[Content truncated]*
+If there is already a RequestContext object available, you should pass it in as the first argument in order to create transactional context as the copy. If no RequestContext is provided, an empty RequestContext will be created and passed to all inner method calls.
 
 **Examples:**
 
@@ -10761,9 +10759,21 @@ The total tax on this line.
 
 The actual line price, taking into account both item discounts and prorated (proportionally-distributed) Order-level discounts. This value is the true economic value of the OrderLine, and is used in tax and refund calculations.
 
-The proratedLinePric
+The proratedLinePrice including tax.
 
-*[Content truncated]*
+An array of TaxLines representing the taxes applied to this OrderLine.
+
+Adjustments (discounts) applied to this OrderLine.
+
+References to the parent Order entity.
+
+An array of OrderLineReferences representing fulfillments for this line.
+
+An array of stock Allocations for this OrderLine.
+
+An array of Cancellations for this OrderLine.
+
+Custom fields for extending the OrderLine entity.
 
 **Examples:**
 
@@ -11017,9 +11027,7 @@ Example: we want to allow sort/filter by and Order's customerLastName. The actua
 
 We can now use the customerLastName property to filter or sort on the list query:
 
-When set to true, the configured shopListQueryLimit and adminListQueryLimit values will be ignored, allowing unlimite
-
-*[Content truncated]*
+When set to true, the configured shopListQueryLimit and adminListQueryLimit values will be ignored, allowing unlimited results to be returned. **Use caution when exposing an unlimited list query to the public**, as it could become a vector for a denial of service attack if an attacker requests a very large list. Available since v2.0.2.
 
 **Examples:**
 
@@ -11383,9 +11391,7 @@ Optional object defining any translation files for the Admin UI. The value shoul
 
 Defines extensions which copy static assets to the custom Admin UI application source asset directory.
 
-Optional array of paths to static 
-
-*[Content truncated]*
+Optional array of paths to static assets which will be copied over to the Admin UI app's `/static` directory. These can be defined as simple string paths or as objects with `path` and `rename` properties to customize the asset names after copying.
 
 **Examples:**
 
@@ -11544,9 +11550,32 @@ This can be configured using the removeOnComplete and removeOnFail options:
 
 The count option specifies the maximum number of jobs to keep in the set, while the age option specifies the maximum age of a job in seconds. If both options are specified, then the jobs kept will be the ones that satisfy both properties.
 
-Some jobs are more important than others. For example, sending out a timely email after a customer places an order is probably more important than a routine data import task. Sometimes you can get the situation where lower-priority j
+Some jobs are more important than others. For example, sending out a timely email after a customer places an order is probably more important than a routine data import task. Sometimes you can get the situation where lower-priority jobs block higher-priority jobs. In this case, you can use the `setJobOptions` function to assign priorities:
 
-*[Content truncated]*
+```typescript
+const config: VendureConfig = {
+  plugins: [
+    BullMQJobQueuePlugin.init({
+      setJobOptions: (queueName, job) => {
+        let priority = 10;
+        switch (queueName) {
+          case 'super-critical-task':
+            priority = 0;
+            break;
+          case 'send-email':
+            priority = 5;
+            break;
+          default:
+            priority = 10;
+        }
+        return { priority };
+      }
+    }),
+  ],
+};
+```
+
+In BullMQ, **lower numbers indicate higher priority**. Jobs with priority 0 will be processed before priority 5, which will be processed before priority 10.
 
 **Examples:**
 
@@ -14356,9 +14385,21 @@ The total tax on this line.
 
 The actual line price, taking into account both item discounts and prorated (proportionally-distributed) Order-level discounts. This value is the true economic value of the OrderLine, and is used in tax and refund calculations.
 
-The proratedLinePric
+The proratedLinePrice including tax.
 
-*[Content truncated]*
+An array of TaxLines representing the taxes applied to this OrderLine.
+
+Adjustments (discounts) applied to this OrderLine.
+
+References to the parent Order entity.
+
+An array of OrderLineReferences representing fulfillments for this line.
+
+An array of stock Allocations for this OrderLine.
+
+An array of Cancellations for this OrderLine.
+
+Custom fields for extending the OrderLine entity.
 
 **Examples:**
 
@@ -16114,9 +16155,7 @@ On the other hand, for code that does not run in the context of a GraphQL/REST r
 
 Such situations include function processed by the JobQueue or stand-alone scripts which make use of Vendure internal services.
 
-If there is already a RequestContext object available, you should pass it in as the first argument in order to create transactional context as
-
-*[Content truncated]*
+If there is already a RequestContext object available, you should pass it in as the first argument in order to create transactional context as the copy. If no RequestContext is provided, an empty RequestContext will be created and passed to all inner method calls.
 
 **Examples:**
 
@@ -23045,9 +23084,7 @@ Example: we want to allow sort/filter by and Order's customerLastName. The actua
 
 We can now use the customerLastName property to filter or sort on the list query:
 
-When set to true, the configured shopListQueryLimit and adminListQueryLimit values will be ignored, allowing unlimite
-
-*[Content truncated]*
+When set to true, the configured shopListQueryLimit and adminListQueryLimit values will be ignored, allowing unlimited results to be returned. **Use caution when exposing an unlimited list query to the public**, as it could become a vector for a denial of service attack if an attacker requests a very large list. Available since v2.0.2.
 
 **Examples:**
 
@@ -25938,9 +25975,32 @@ This can be configured using the removeOnComplete and removeOnFail options:
 
 The count option specifies the maximum number of jobs to keep in the set, while the age option specifies the maximum age of a job in seconds. If both options are specified, then the jobs kept will be the ones that satisfy both properties.
 
-Some jobs are more important than others. For example, sending out a timely email after a customer places an order is probably more important than a routine data import task. Sometimes you can get the situation where lower-priority j
+Some jobs are more important than others. For example, sending out a timely email after a customer places an order is probably more important than a routine data import task. Sometimes you can get the situation where lower-priority jobs block higher-priority jobs. In this case, you can use the `setJobOptions` function to assign priorities:
 
-*[Content truncated]*
+```typescript
+const config: VendureConfig = {
+  plugins: [
+    BullMQJobQueuePlugin.init({
+      setJobOptions: (queueName, job) => {
+        let priority = 10;
+        switch (queueName) {
+          case 'super-critical-task':
+            priority = 0;
+            break;
+          case 'send-email':
+            priority = 5;
+            break;
+          default:
+            priority = 10;
+        }
+        return { priority };
+      }
+    }),
+  ],
+};
+```
+
+In BullMQ, **lower numbers indicate higher priority**. Jobs with priority 0 will be processed before priority 5, which will be processed before priority 10.
 
 **Examples:**
 
@@ -26992,9 +27052,7 @@ Optional object defining any translation files for the Admin UI. The value shoul
 
 Defines extensions which copy static assets to the custom Admin UI application source asset directory.
 
-Optional array of paths to static 
-
-*[Content truncated]*
+Optional array of paths to static assets which will be copied over to the Admin UI app's `/static` directory. These can be defined as simple string paths or as objects with `path` and `rename` properties to customize the asset names after copying.
 
 **Examples:**
 

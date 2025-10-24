@@ -3747,9 +3747,76 @@ The API described in this section was added in Vendure v2.2.0.
 
 When using the .ofType().subscribe() pattern, the event handler is non-blocking. This means that the code that publishes the event (the "publishing code") will have no knowledge of any subscribers, and in fact any subscribers will be executed after the code that published the event has completed (technically, any ongoing database transactions are completed before the event gets emitted to the subscribers). This follows the typical Observer pattern and is a good fit for most use-cases.
 
-However, the
+However, there are some scenarios where you may want the event handler to execute **during** the publishing code, rather than after it has completed. This is where **blocking event handlers** come in.
 
-*[Content truncated]*
+Blocking event handlers differ from regular event subscribers in several critical ways:
+
+| Aspect | Event Subscribers | Blocking Handlers |
+|--------|-------------------|-------------------|
+| **Execution** | Executed _after_ publishing code completes | Execute _during_ the publishing code |
+| **Error Handling** | Errors do not affect publishing code | Errors propagated to publishing code |
+| **Transactions** | Guaranteed to execute only after the publishing code transaction has completed | Executed within the transaction of the publishing code |
+| **Performance Impact** | Non-blocking; subscriber performance irrelevant | Blocking; handler speed directly affects publishing code |
+
+**When to use blocking handlers:**
+
+1. Critical operations requiring completion before publishing code continues
+2. Financial record manipulation where handler errors must rollback transactions
+3. Protection against server shutdowns before event subscribers execute
+
+**Implementation Example:**
+
+```typescript
+import { Injectable, OnModuleInit } from '@nestjs/common';
+import {
+  EventBus,
+  PluginCommonModule,
+  VendurePlugin,
+  CustomerEvent
+} from '@vendure/core';
+import { CustomerSyncService } from './services/customer-sync.service';
+
+@VendurePlugin({
+    imports: [PluginCommonModule],
+})
+export class MyPluginPlugin implements OnModuleInit {
+    constructor(
+        private eventBus: EventBus,
+        private customerSyncService: CustomerSyncService,
+    ) {}
+
+    onModuleInit() {
+        this.eventBus.registerBlockingEventHandler({
+            event: CustomerEvent,
+            id: 'sync-customer-details-handler',
+            handler: async event => {
+                await this.customerSyncService.triggerCustomerSyncJob(event);
+            },
+        });
+    }
+}
+```
+
+**Performance Considerations:**
+
+Blocking handlers must execute quickly. The system logs warnings for handlers exceeding 100ms execution time. Optimize by keeping operations minimal—ideally just queuing jobs rather than processing data directly.
+
+**Order of Execution:**
+
+When multiple handlers are registered, execution follows registration order. Use `before` or `after` options to enforce specific sequences:
+
+```typescript
+this.eventBus.registerBlockingEventHandler({
+    type: CustomerEvent,
+    id: 'check-customer-details-handler',
+    handler: async event => {
+        // Implementation
+    },
+    before: 'sync-customer-details-handler',
+});
+```
+
+This ensures the checking handler executes before the sync handler.
 
 **Examples:**
 

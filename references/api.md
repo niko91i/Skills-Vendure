@@ -25899,9 +25899,7 @@ This event is fired when a registered user successfully changes the identifier (
 
 This event is fired when a registered user requests to update the identifier (ie email address) associated with the account.
 
-This event is fired when ven
-
-*[Content truncated]*
+This event is fired when a new user registers an account. It includes the context and the newly registered user.
 
 **Examples:**
 
@@ -26339,9 +26337,7 @@ This object is the return value of the CancelPaymentFn when the Payment could no
 
 The state to transition this Payment to upon unsuccessful cancellation. Defaults to Error. Note that if using a different state, it must be legal to transition to that state from the Authorized state according to the PaymentState config (which can be customized using the PaymentProcess).
 
-The message that will be returned when attempting to
-
-*[Content truncated]*
+The message that will be returned when attempting to cancel the payment, and will also be persisted as Payment.errorMessage.
 
 **Examples:**
 
@@ -26438,13 +26434,11 @@ Allows the returned list query data to be transformed in some way. This is an ad
 
 Allows you to directly manipulate the Tanstack Table TableOptions object before the table is created. And advanced option that is not often required.
 
-Bulk actions are actions that can be applied to one or more table rows, and include things like
+Bulk actions are actions that can be applied to one or more table rows, and include things like deleting, exporting, or bulk editing selected items.
 
 See the BulkAction docs for an example of how to build the component.
 
-Register a function that allows you to assign a refresh 
-
-*[Content truncated]*
+Register a function that allows you to assign a refresh function to trigger a refetch of the list data. This is useful when you need to programmatically refresh the table after mutations or external changes.
 
 **Examples:**
 
@@ -26919,9 +26913,7 @@ This applies to the jpg, webp and avif formats. The default quality value for jp
 
 The q parameter can also be combined with presets (see below).
 
-Presets can be defined which allow a single preset name to be 
-
-*[Content truncated]*
+Presets can be defined which allow a single preset name to be used instead of specifying the width, height and mode. For example, you can define a preset called 'thumbnail' with specific dimensions, and then use it in URLs like `?preset=thumbnail`. The plugin includes built-in presets (tiny, thumb, small, medium, large) and supports custom preset configuration through the AssetServerOptions presets property.
 
 **Examples:**
 

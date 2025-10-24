@@ -1250,9 +1250,52 @@ Additionally, we implement Node which is a built-in GraphQL interface.
 
 Now we can add this type to both the Admin and Shop APIs:
 
-Let's say you want to add a new field to the ProductVariant type to allow the storefront to display some indication of how long a particular product variant would ta
+Let's say you want to add a new field to the ProductVariant type to allow the storefront to display some indication of how long a particular product variant would take to deliver.
 
-*[Content truncated]*
+**Extending ProductVariant with Custom Fields:**
+
+We can add a non-nullable 'delivery' field of type 'DeliveryEstimate' to the ProductVariant GraphQL type:
+
+```typescript
+import gql from 'graphql-tag';
+
+export const shopApiExtensions = gql`
+  type DeliveryEstimate {
+    from: Int!
+    to: Int!
+  }
+
+  extend type ProductVariant {
+    delivery: DeliveryEstimate!
+  }
+`;
+```
+
+**Implementing the Field Resolver:**
+
+Define an entity resolver for the 'delivery' field on the ProductVariant type:
+
+```typescript
+import { Parent, ResolveField, Resolver } from '@nestjs/graphql';
+import { Ctx, RequestContext, ProductVariant } from '@vendure/core';
+import { DeliveryEstimateService } from '../services/delivery-estimate.service';
+
+@Resolver('ProductVariant')
+export class ProductVariantEntityResolver {
+    constructor(private deliveryEstimateService: DeliveryEstimateService) {}
+
+    @ResolveField()
+    delivery(@Ctx() ctx: RequestContext, @Parent() variant: ProductVariant) {
+        return this.deliveryEstimateService.getEstimate(ctx, variant.id);
+    }
+}
+```
+
+**Key Points:**
+- The `@Resolver()` decorator has an argument matching the type name, telling NestJS which type this resolver targets
+- The `@ResolveField()` decorator marks methods as field resolvers
+- Method names match schema field names
+- Always use the `@Ctx()` decorator to inject the `RequestContext` into resolver functions
 
 **Examples:**
 
@@ -1385,9 +1428,68 @@ Vendure uses a job queue to handle the processing of certain tasks which are typ
 
 In the normal request-response, all intermediate tasks (looking up data in the database, performing business logic etc.) occur before the response can be returned. For most operations this is fine, since those intermediate tasks are very fast.
 
-Some operations however will need to perform much longer-running tasks. For example, updating the search index on thousands of products could take up to a minute or more. In this
+Some operations however will need to perform much longer-running tasks. For example, updating the search index on thousands of products could take up to a minute or more. In this case, we don't want to block the response while this task completes.
 
-*[Content truncated]*
+**The Job Queue System:**
+
+Vendure uses a job queue to handle the processing of tasks which are too slow to run in the normal request-response cycle. Jobs are processed by a separate **Worker process**, which can be scaled independently of the main server.
+
+**Setting Up a Worker Process:**
+
+Create a dedicated worker entry file and use `bootstrapWorker()` to start processing jobs:
+
+```typescript
+import { bootstrapWorker } from '@vendure/core';
+import { config } from './vendure-config';
+
+bootstrapWorker(config)
+    .then(worker => worker.startJobQueue())
+    .catch(err => {
+        console.log(err);
+    });
+```
+
+**Dedicated Workers for Specific Queues:**
+
+Configure workers to process only specific job queues:
+
+```typescript
+import { bootstrapWorker, mergeConfig } from '@vendure/core';
+import { config } from './vendure-config';
+
+const transcoderConfig = mergeConfig(config, {
+    jobQueueOptions: {
+      activeQueues: ['transcode-video'],
+    }
+});
+
+bootstrapWorker(transcoderConfig)
+  .then(worker => worker.startJobQueue())
+  .catch(err => {
+    console.log(err);
+  });
+```
+
+**Process Context Detection:**
+
+Use the `ProcessContext` provider to execute code conditionally based on whether it's running in the server or worker:
+
+```typescript
+import { Injectable, OnApplicationBootstrap } from '@nestjs/common';
+import { ProcessContext } from '@vendure/core';
+
+@Injectable()
+export class MyService implements OnApplicationBootstrap {
+    constructor(private processContext: ProcessContext) {}
+
+    onApplicationBootstrap() {
+        if (this.processContext.isServer) {
+            // code which will only execute when running in
+            // the server process
+        }
+    }
+}
+```
 
 **Examples:**
 
@@ -1714,9 +1816,42 @@ This will guide you through the creation of a new plugin and automate all aspect
 
 This is the recommended way of creating a new plugin.
 
-Although the Vendure CLI is the recommend
+Although the Vendure CLI is the recommended way to create a new plugin, it can be useful to understand the process of creating a plugin manually.
 
-*[Content truncated]*
+**Plugin Fundamentals:**
+
+All plugins require the `@VendurePlugin()` decorator and typically import `PluginCommonModule`:
+
+```typescript
+import { PluginCommonModule, VendurePlugin } from '@vendure/core';
+
+@VendurePlugin({
+    imports: [PluginCommonModule],
+})
+export class CustomPlugin {}
+```
+
+**Core Metadata Properties:**
+- **imports**: NestJS module dependencies
+- **providers**: Injectable services
+- **controllers**: REST endpoints
+- **exports**: Providers available to other plugins
+- **configuration**: Modifies VendureConfig pre-bootstrap
+- **shopApiExtensions**: Extends Shop GraphQL API
+- **adminApiExtensions**: Extends Admin GraphQL API
+- **entities**: Defines new database entities
+- **compatibility**: Declares version compatibility via semver range
+
+**Lifecycle Management:**
+
+Plugins inherit NestJS lifecycle hooks executed in both server and worker contexts:
+- `onModuleInit`
+- `onApplicationBootstrap`
+- `onModuleDestroy`
+- `beforeApplicationShutdown`
+- `onApplicationShutdown`
+
+The `configure()` method applies middleware exclusively in the server context, not the worker.
 
 **Examples:**
 
@@ -1927,9 +2062,45 @@ The second problem is handled by having tasks only executed on worker processes.
 
 There is some overlap between the use of a scheduled task and a job queue job. They both perform some task on the worker, independent of requests coming in to the server.
 
-The first difference is 
+**Key Differences:**
 
-*[Content truncated]*
+| Aspect | Scheduled Tasks | Job Queue |
+|--------|-----------------|-----------|
+| **Triggering** | Automatic per schedule | Manually triggered |
+| **Execution Order** | Immediate when scheduled | Queued; respects prior jobs |
+| **Multi-Instance Safety** | Built-in locking mechanism | Inherent queue ordering |
+| **Recording** | Last result only | Full history of executions |
+| **Use Case** | "According to schedule, exactly once" | "Process eventually, track results" |
+
+**When to Use Each:**
+
+**Choose scheduled tasks for:**
+- Regular maintenance (session cleanup, cache refresh)
+- Time-based operations (daily reports, midnight syncs)
+- Work that must run exactly once across distributed systems
+
+**Choose job queues for:**
+- Long-running processes (resource-intensive operations)
+- Work requiring historical audit trails
+- Operations triggered by specific events
+- Tasks where queuing delays are acceptable
+
+**Combining Both Approaches:**
+
+A scheduled task can add jobs to the queue, combining benefits:
+
+```typescript
+// Schedule kicks off a job for better resource management
+async execute({injector}) {
+    const jobQueue = injector.get(JobQueueService);
+    await jobQueue.add({
+        queueName: 'sitemap-generation',
+        data: {}
+    });
+}
+```
+
+This pattern leverages the scheduler's guarantee of single execution while delegating actual work to the job queue's managed processing.
 
 **Examples:**
 
@@ -2081,9 +2252,66 @@ Whereas strategies are typically used to provide a single implementation of a pa
 
 For example, Vendure ships with a set of default CollectionFilters:
 
-When setting up a Collection,
+```typescript
+export const defaultCollectionFilters = [
+    facetValueCollectionFilter,
+    variantNameCollectionFilter,
+    variantIdCollectionFilter,
+    productIdCollectionFilter,
+];
+```
 
-*[Content truncated]*
+When setting up a Collection, you can select and configure these filters through the Vendure Dashboard to determine which products are included.
+
+**Creating Custom Collection Filters:**
+
+You can create custom filters to match products based on specific criteria. Here's an example that filters by SKU:
+
+```typescript
+import { CollectionFilter, LanguageCode } from '@vendure/core';
+
+export const skuCollectionFilter = new CollectionFilter({
+    args: {
+        sku: {
+            type: 'string',
+            label: [{ languageCode: LanguageCode.en, value: 'SKU' }],
+            description: [
+                {
+                    languageCode: LanguageCode.en,
+                    value: 'Matches any product variants with an SKU containing this value',
+                },
+            ],
+        },
+    },
+    code: 'variant-sku-filter',
+    description: [{ languageCode: LanguageCode.en, value: 'Filter by matching SKU' }],
+
+    apply: (qb, args) => {
+        const LIKE = qb.connection.options.type === 'postgres' ? 'ILIKE' : 'LIKE';
+        return qb.andWhere(`productVariant.sku ${LIKE} :sku`, {
+            sku: `%${args.sku}%`
+        });
+    },
+});
+```
+
+**Registering Custom Filters:**
+
+Add your custom filter to the Vendure configuration:
+
+```typescript
+import { defaultCollectionFilters, VendureConfig } from '@vendure/core';
+import { skuCollectionFilter } from './config/sku-collection-filter';
+
+export const config: VendureConfig = {
+    catalogOptions: {
+        collectionFilters: [
+            ...defaultCollectionFilters,
+            skuCollectionFilter
+        ],
+    },
+};
+```
 
 **Examples:**
 

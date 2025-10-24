@@ -12070,9 +12070,17 @@ The strategy used to decide how long to wait before retrying a failed job.
 
 When a job is added to the JobQueue using JobQueue.add(), the calling code may specify the number of retries in case of failure. This option allows you to override that number and specify your own number of retries based on the job being added.
 
-If set to true, the database will be used to store buffered jobs. This is recommended f
+If set to true, the database will be used to store buffered jobs. This is recommended for production.
 
-*[Content truncated]*
+When you enable this setting, a new JobRecordBuffer database entity is created, which requires a database migration when first activated.
+
+This option is particularly valuable for production environments where you need persistent job buffering. By storing buffered jobs in the database instead of keeping them in application memory, you gain:
+
+- **Durability**: Jobs persist across server restarts
+- **Reliability**: Reduced risk of job loss due to application crashes
+- **Scalability**: Better support for distributed deployments
+
+The default value is false, so you must explicitly enable this feature if your deployment requires database-backed job buffering.
 
 **Examples:**
 
@@ -18306,9 +18314,11 @@ Initialize the mollie payment plugin
 
 Configuration options for the Mollie payments plugin.
 
-The host of your Vendure server, e.g. 'https://my-vendure.io'. This is used by Mollie to send we
+The host of your Vendure server, e.g. 'https://my-vendure.io'. This is used by Mollie to send webhook events to the Vendure server.
 
-*[Content truncated]*
+It requires a complete URL string pointing to your Vendure server instance. Mollie uses this host address to route webhook notifications back to your Vendure installation.
+
+This is essential for the payment plugin to receive and process payment status updates from the Mollie platform. Without properly configuring this value, your Vendure server would not receive webhook callbacks from Mollie regarding payment events.
 
 **Examples:**
 
@@ -21257,9 +21267,11 @@ Initialize the mollie payment plugin
 
 Configuration options for the Mollie payments plugin.
 
-The host of your Vendure server, e.g. 'https://my-vendure.io'. This is used by Mollie to send we
+The host of your Vendure server, e.g. 'https://my-vendure.io'. This is used by Mollie to send webhook events to the Vendure server.
 
-*[Content truncated]*
+It requires a complete URL string pointing to your Vendure server instance. Mollie uses this host address to route webhook notifications back to your Vendure installation.
+
+This is essential for the payment plugin to receive and process payment status updates from the Mollie platform. Without properly configuring this value, your Vendure server would not receive webhook callbacks from Mollie regarding payment events.
 
 **Examples:**
 
@@ -22885,9 +22897,11 @@ When true, any price changes to a ProductVariant in one Channel will update any 
 
 The default ProductVariantPriceUpdateStrategy which by default will not update any other prices when a price is created, updated or deleted.
 
-If the syncPricesAcrossChannels option is set to true, then when a price is up
+If the syncPricesAcrossChannels option is set to true, then when a price is updated in one Channel, the price of the same currencyCode in other Channels will be updated to match.
 
-*[Content truncated]*
+Note that if there are different tax settings across the channels, these will not be taken into account. To handle this case, a custom strategy should be implemented.
+
+When enabled, this ensures price synchronization across all channels for the same currency, providing consistency in multi-channel deployments. The default value is false.
 
 **Examples:**
 
@@ -23585,9 +23599,23 @@ Adds a Surcharge to the Order.
 
 Removes a Surcharge from the Order.
 
-Applies a coupon code to the Order, which should be a valid coupon code as specified in the con
+Applies a coupon code to the Order, which should be a valid coupon code as specified in the configuration of an active Promotion.
 
-*[Content truncated]*
+The method accepts three parameters:
+- **RequestContext**: The operation context
+- **orderId**: The target order's identifier
+- **couponCode**: The promotional code as a string
+
+The method returns a promise that resolves to either an error result (if validation fails) or the updated Order object (on success).
+
+For successful coupon application, the coupon code must:
+1. Exist as a valid code
+2. Be configured within an active Promotion
+3. Meet any eligibility criteria defined by that promotion
+
+The error handling structure (ErrorResultUnion) allows your application to gracefully manage validation failures during the coupon application process.
+
+Related functionality includes removeCouponCode() to remove an applied coupon from an order, and getOrderPromotions() to retrieve all promotions currently applied to an order.
 
 **Examples:**
 
@@ -24986,9 +25014,17 @@ The strategy used to decide how long to wait before retrying a failed job.
 
 When a job is added to the JobQueue using JobQueue.add(), the calling code may specify the number of retries in case of failure. This option allows you to override that number and specify your own number of retries based on the job being added.
 
-If set to true, the database will be used to store buffered jobs. This is recommended f
+If set to true, the database will be used to store buffered jobs. This is recommended for production.
 
-*[Content truncated]*
+When you enable this setting, a new JobRecordBuffer database entity is created, which requires a database migration when first activated.
+
+This option is particularly valuable for production environments where you need persistent job buffering. By storing buffered jobs in the database instead of keeping them in application memory, you gain:
+
+- **Durability**: Jobs persist across server restarts
+- **Reliability**: Reduced risk of job loss due to application crashes
+- **Scalability**: Better support for distributed deployments
+
+The default value is false, so you must explicitly enable this feature if your deployment requires database-backed job buffering.
 
 **Examples:**
 

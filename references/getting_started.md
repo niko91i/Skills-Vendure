@@ -54,9 +54,27 @@ We recommend you do so, as it will give you a good starting point for exploring 
 
 Next, a project scaffold will be created and dependencies installed. This may take a few minutes.
 
-Onc
+Once the installation is complete, navigate to your project directory and start the development server:
 
-*[Content truncated]*
+```bash
+cd my-shop
+npm run dev
+```
+
+In a separate terminal, start the Vite dev server:
+
+```bash
+npx vite
+```
+
+This will make the following available:
+- **Admin GraphQL API**: http://localhost:3000/admin-api
+- **Shop GraphQL API**: http://localhost:3000/shop-api
+- **Dashboard**: http://localhost:5173/dashboard/
+
+The default superadmin credentials are:
+- **Username**: `superadmin`
+- **Password**: `superadmin`
 
 **Examples:**
 
@@ -67,12 +85,19 @@ npx @vendure/create my-shop
 
 Example 2 (text):
 ```text
-┌  Let's create a Vendure App ✨│◆  How should we proceed?│  ● Quick Start (Get up and running in a single step)│  ○ Manual Configuration└
+┌  Let's create a Vendure App ✨
+│
+│◆  How should we proceed?
+│  ● Quick Start (Get up and running in a single step)
+│  ○ Manual Configuration
+│
+└
 ```
 
 Example 3 (bash):
 ```bash
-cd my-shopnpm run dev
+cd my-shop
+npm run dev
 ```
 
 Example 4 (sh):
@@ -134,30 +159,88 @@ The types given here are not the actual types used in the Vendure GraphQL schema
 
 There are two special types in GraphQL: Query and Mutation. These are the entry points into the API.
 
-The Query type is used for
+The Query type is used for fetching data. For example:
 
-*[Content truncated]*
+```graphql
+type Query {
+  customers: [Customer!]!
+}
+```
+
+This defines a `customers` field that returns a list of Customer objects.
+
+The Mutation type is used for modifying data. For example:
+
+```graphql
+type Mutation {
+  updateCustomerEmail(customerId: ID!, email: String!): Customer!
+}
+```
+
+This field accepts two arguments and returns a Customer object.
+
+**Input Types** allow passing complex data to queries or mutations. They resemble object types but use the `input` keyword:
+
+```graphql
+input UpdateCustomerEmailInput {
+  customerId: ID!
+  email: String!
+}
+```
+
+The **Schema** represents the complete definition of the GraphQL API. It specifies available types, fields, queries, and mutations—essentially everything possible with that API.
+
+A minimal schema example includes:
+
+```graphql
+schema {
+  query: Query
+  mutation: Mutation
+}
+```
+
+An **Operation** is the general name for a GraphQL query or mutation. Operations can include names and variables for dynamic values.
 
 **Examples:**
 
 Example 1 (graphql):
 ```graphql
-type Customer {  id: ID!  name: String!  email: String!}
+type Customer {
+  id: ID!
+  name: String!
+  email: String!
+}
 ```
 
 Example 2 (graphql):
 ```graphql
-type Order {  id: ID!  orderPlacedAt: DateTime  isActive: Boolean!  customer: Customer!  lines: [OrderLine!]!}type OrderLine {  id: ID!  productId: ID!  quantity: Int!}
+type Order {
+  id: ID!
+  orderPlacedAt: DateTime
+  isActive: Boolean!
+  customer: Customer!
+  lines: [OrderLine!]!
+}
+
+type OrderLine {
+  id: ID!
+  productId: ID!
+  quantity: Int!
+}
 ```
 
 Example 3 (graphql):
 ```graphql
-type Query {  customers: [Customer!]!}
+type Query {
+  customers: [Customer!]!
+}
 ```
 
 Example 4 (graphql):
 ```graphql
-type Mutation {  updateCustomerEmail(customerId: ID!, email: String!): Customer!}
+type Mutation {
+  updateCustomerEmail(customerId: ID!, email: String!): Customer!
+}
 ```
 
 ---
@@ -281,20 +364,90 @@ Next, let's look at a mutation. Mutations are used to modify data on the server.
 
 Here's a mutation which adds a product to an order:
 
-This mutation adds a product variant with ID 42 to the order. The response will either be an Order object, or an ErrorResult. We use a special syntax called a fragment to specify which properties we want to include in the response. In this case, we are saying tha
+This mutation adds a product variant with ID 42 to the order. The response will either be an Order object, or an ErrorResult. We use a special syntax called a **fragment** to specify which properties we want to include in the response. In this case, we are saying that if the response is an Order object, include properties like `id`, `code`, `totalQuantity`, and `totalWithTax`. If it's an ErrorResult, include `errorCode` and `message`.
 
-*[Content truncated]*
+The **Admin API** requires authentication before accessing protected operations. To log in, use the superadmin credentials:
+
+```graphql
+mutation Login {
+  login(username: "superadmin", password: "superadmin") {
+    ... on CurrentUser {
+      id
+      identifier
+    }
+    ... on ErrorResult {
+      errorCode
+      message
+    }
+  }
+}
+```
+
+Once authenticated, you can access extended product information including enabled status, variant details, pricing by currency, and stock levels across locations—data unavailable through the Shop API:
+
+```graphql
+query GetProduct {
+  product(id: 42) {
+    enabled
+    name
+    variants {
+      id
+      name
+      enabled
+      prices {
+        currencyCode
+        price
+      }
+      stockLevels {
+        stockLocationId
+        stockOnHand
+        stockAllocated
+      }
+    }
+  }
+}
+```
 
 **Examples:**
 
 Example 1 (graphql):
 ```graphql
-mutation Login {    login(username: "superadmin", password: "superadmin") {        ... on CurrentUser {            id            identifier        }        ... on ErrorResult {            errorCode            message        }    }}
+mutation Login {
+  login(username: "superadmin", password: "superadmin") {
+    ... on CurrentUser {
+      id
+      identifier
+    }
+    ... on ErrorResult {
+      errorCode
+      message
+    }
+  }
+}
 ```
 
 Example 2 (graphql):
 ```graphql
-query GetProduct {  product(id: 42) {    enabled    name    variants {      id      name      enabled      prices {        currencyCode        price      }      stockLevels {        stockLocationId        stockOnHand        stockAllocated      }    }  }}
+query GetProduct {
+  product(id: 42) {
+    enabled
+    name
+    variants {
+      id
+      name
+      enabled
+      prices {
+        currencyCode
+        price
+      }
+      stockLevels {
+        stockLocationId
+        stockOnHand
+        stockAllocated
+      }
+    }
+  }
+}
 ```
 
 ---
@@ -349,9 +502,27 @@ We recommend you do so, as it will give you a good starting point for exploring 
 
 Next, a project scaffold will be created and dependencies installed. This may take a few minutes.
 
-Onc
+Once the installation is complete, navigate to your project directory and start the development server:
 
-*[Content truncated]*
+```bash
+cd my-shop
+npm run dev
+```
+
+In a separate terminal, start the Vite dev server:
+
+```bash
+npx vite
+```
+
+This will make the following available:
+- **Admin GraphQL API**: http://localhost:3000/admin-api
+- **Shop GraphQL API**: http://localhost:3000/shop-api
+- **Dashboard**: http://localhost:5173/dashboard/
+
+The default superadmin credentials are:
+- **Username**: `superadmin`
+- **Password**: `superadmin`
 
 **Examples:**
 
@@ -362,12 +533,19 @@ npx @vendure/create my-shop
 
 Example 2 (text):
 ```text
-┌  Let's create a Vendure App ✨│◆  How should we proceed?│  ● Quick Start (Get up and running in a single step)│  ○ Manual Configuration└
+┌  Let's create a Vendure App ✨
+│
+│◆  How should we proceed?
+│  ● Quick Start (Get up and running in a single step)
+│  ○ Manual Configuration
+│
+└
 ```
 
 Example 3 (bash):
 ```bash
-cd my-shopnpm run dev
+cd my-shop
+npm run dev
 ```
 
 Example 4 (sh):
@@ -428,10 +606,106 @@ How It Works: The Admin UI is an Angular application, and to generate a custom U
 Your providers.ts file exports an array of objects known as "providers" in Angular terminology. These providers are passed to the application on startup to configure new functionality.
 
 With providers you can:
+- Add buttons to action bars
+- Add menu items
+- Add bulk actions
+- Register custom components
+- Create dashboard widgets
+- Add custom form inputs
+- Add history timeline entries
 
-A providers file should have a default export which is an array of providers
+A providers file should have a **default export** which is an array of provider objects.
 
-*[Content truncated]*
+**Basic Providers Example:**
+
+```typescript
+import { addActionBarItem } from '@vendure/admin-ui/core';
+
+export default [
+    addActionBarItem({
+        id: 'test-button',
+        label: 'Test Button',
+        locationId: 'order-list',
+    }),
+];
+```
+
+**Specifying Providers in Configuration:**
+
+When defining UI extensions, specify provider file paths relative to the `extensionPath` directory:
+
+```typescript
+import { compileUiExtensions } from '@vendure/ui-devkit/compiler';
+import * as path from 'path';
+
+compileUiExtensions({
+    outputPath: path.join(__dirname, '../admin-ui'),
+    extensions: [
+        {
+            id: 'test-extension',
+            extensionPath: path.join(__dirname, 'plugins/my-plugin/ui'),
+            providers: ['providers.ts'],
+        },
+    ],
+    devMode: true,
+});
+```
+
+**Routes Configuration:**
+
+Routes enable custom views within the Admin UI. Define routes in a `routes.ts` file and reference them in your plugin configuration:
+
+```typescript
+static ui: AdminUiExtension = {
+    id: 'my-plugin-ui',
+    extensionPath: path.join(__dirname, 'ui'),
+    routes: [{ route: 'my-plugin', filePath: 'routes.ts' }],
+    providers: ['providers.ts'],
+};
+```
+
+**Development vs Production Mode:**
+
+For **development**, enable hot-reloading with automatic browser refresh:
+
+```typescript
+compileUiExtensions({
+    outputPath: path.join(__dirname, '../admin-ui'),
+    extensions: [/* ... */],
+    devMode: true,
+})
+```
+
+For **production**, compile as a standalone deployment step:
+
+```typescript
+import { compileUiExtensions } from '@vendure/ui-devkit/compiler';
+import * as path from 'path';
+
+compileUiExtensions({
+    outputPath: path.join(__dirname, '../admin-ui'),
+    extensions: [/* ... */],
+})
+    .compile?.()
+    .then(() => process.exit(0));
+```
+
+Run via command line:
+
+```bash
+npx ts-node src/compile-admin-ui.ts
+```
+
+Reference the compiled output in production:
+
+```typescript
+AdminUiPlugin.init({
+    port: 3002,
+    app: {
+        path: path.join(__dirname, '../admin-ui/dist/browser'),
+    },
+})
+```
 
 **Examples:**
 

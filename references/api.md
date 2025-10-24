@@ -71,9 +71,9 @@ Used to configure a customized instance of the default OrderProcess that ships w
 
 The DefaultOrderProcessOptions type defines all available options. If you require even more customization, you can create your own implementation of the OrderProcess interface.
 
-This is the built-i
+This is the built-in default OrderProcess that ships with Vendure. A customized version of this process can be created using the `configureDefaultOrderProcess` function, which allows you to pass in an object to enable/disable certain checks.
 
-*[Content truncated]*
+The default implementation manages order state transitions and includes validation checks such as verification that modifications have associated payments, confirmation that payment amounts cover order totals, validation of product variant existence, requirements for customer, shipping method, and stock availability before payment arrangement, and fulfillment state verification before shipping/delivery transitions.
 
 **Examples:**
 
@@ -274,9 +274,37 @@ Provide additional options to the Stripe payment intent creation. By default, th
 
 For example, if you want to provide a stripeAccount for the payment intent, you can do so like this:
 
-Provide additional parame
+Provide additional parameters to the Stripe customer creation. By default, the plugin will already pass the `email` and `name` parameters. This allows you to add additional fields such as address information to the Stripe customer object.
 
-*[Content truncated]*
+For example, if you want to provide address details for the customer, you can do so like this:
+
+```typescript
+import { EntityHydrator, VendureConfig } from '@vendure/core';
+import { StripePlugin } from '@vendure/payments-plugin/package/stripe';
+
+export const config: VendureConfig = {
+  plugins: [
+    StripePlugin.init({
+      storeCustomersInStripe: true,
+      customerCreateParams: async (injector, ctx, order) => {
+        const entityHydrator = injector.get(EntityHydrator);
+        const customer = order.customer;
+        await entityHydrator.hydrate(ctx, customer, { relations: ['addresses'] });
+        const defaultBillingAddress = customer.addresses.find(a => a.defaultBillingAddress) ?? customer.addresses[0];
+        return {
+          address: {
+            line1: defaultBillingAddress.streetLine1 || order.shippingAddress?.streetLine1,
+            postal_code: defaultBillingAddress.postalCode || order.shippingAddress?.postalCode,
+            city: defaultBillingAddress.city || order.shippingAddress?.city,
+            state: defaultBillingAddress.province || order.shippingAddress?.province,
+            country: defaultBillingAddress.country.code || order.shippingAddress?.countryCode,
+          },
+        };
+      }
+    }),
+  ],
+};
+```
 
 **Examples:**
 
@@ -933,9 +961,7 @@ Defines a predicate function which is used to determine whether the event will t
 
 A function which defines how the recipient email address should be extracted from the incoming event.
 
-The recipient can be a plain email address: 'foobar@example.com' Or with a formatted name (includes unicode support): 'Ноде Майлер <foobar@example.com>' Or a comma-separated list of addr
-
-*[Content truncated]*
+The recipient can be a plain email address: `'foobar@example.com'` Or with a formatted name (includes unicode support): `'Ноде Майлер <foobar@example.com>'` Or a comma-separated list of addresses: `'foobar@example.com, "Ноде Майлер" <bar@example.com>'`
 
 **Examples:**
 
@@ -1311,9 +1337,13 @@ True if the current anonymous session is only authorized to operate on entities 
 
 Translate the given i18n key
 
-Sets the replication mode for the current RequestContext. This mode determines whether the operations within this context should interact with the master database or a r
+Sets the replication mode for the current RequestContext. This mode determines whether the operations within this context should interact with the master database or a replica database. This allows for finer control over database query routing in distributed database environments.
 
-*[Content truncated]*
+Available modes:
+- `'master'`: Routes operations to the master database
+- `'replica'`: Routes operations to a replica database
+
+The replication mode can be retrieved using the `replicationMode` getter property.
 
 **Examples:**
 
@@ -2604,9 +2634,37 @@ Configures one or more AuthenticationStrategies which defines how authentication
 
 Configures one or more AuthenticationStrategy which defines how authentication is handled in the Admin API.
 
-Allows custom Permissions to be defined, which can be used to restrict access to custom Graph
+Allows custom Permissions to be defined, which can be used to restrict access to custom GraphQL resolvers and REST controllers. This is done using the `PermissionDefinition` class in conjunction with the `@Allow` decorator.
 
-*[Content truncated]*
+Custom permissions are defined using `PermissionDefinition` and then added to this array. For example:
+
+```typescript
+import { PermissionDefinition } from '@vendure/core';
+
+const syncPermission = new PermissionDefinition({
+  name: 'SyncInventory',
+  description: 'Allows syncing stock levels via Admin API'
+});
+
+const config: VendureConfig = {
+  authOptions: {
+    customPermissions: [syncPermission],
+  },
+}
+```
+
+Then use the permission in your resolver:
+
+```typescript
+@Resolver()
+export class InventorySyncResolver {
+  @Allow(syncPermission.Permission)
+  @Mutation()
+  syncInventory() {
+    // Only users with the SyncInventory permission can execute this
+  }
+}
+```
 
 **Examples:**
 
@@ -5647,9 +5705,13 @@ True if the current anonymous session is only authorized to operate on entities 
 
 Translate the given i18n key
 
-Sets the replication mode for the current RequestContext. This mode determines whether the operations within this context should interact with the master database or a r
+Sets the replication mode for the current RequestContext. This mode determines whether the operations within this context should interact with the master database or a replica database. This allows for finer control over database query routing in distributed database environments.
 
-*[Content truncated]*
+Available modes:
+- `'master'`: Routes operations to the master database
+- `'replica'`: Routes operations to a replica database
+
+The replication mode can be retrieved using the `replicationMode` getter property.
 
 **Examples:**
 
@@ -6185,9 +6247,37 @@ Provide additional options to the Stripe payment intent creation. By default, th
 
 For example, if you want to provide a stripeAccount for the payment intent, you can do so like this:
 
-Provide additional parame
+Provide additional parameters to the Stripe customer creation. By default, the plugin will already pass the `email` and `name` parameters. This allows you to add additional fields such as address information to the Stripe customer object.
 
-*[Content truncated]*
+For example, if you want to provide address details for the customer, you can do so like this:
+
+```typescript
+import { EntityHydrator, VendureConfig } from '@vendure/core';
+import { StripePlugin } from '@vendure/payments-plugin/package/stripe';
+
+export const config: VendureConfig = {
+  plugins: [
+    StripePlugin.init({
+      storeCustomersInStripe: true,
+      customerCreateParams: async (injector, ctx, order) => {
+        const entityHydrator = injector.get(EntityHydrator);
+        const customer = order.customer;
+        await entityHydrator.hydrate(ctx, customer, { relations: ['addresses'] });
+        const defaultBillingAddress = customer.addresses.find(a => a.defaultBillingAddress) ?? customer.addresses[0];
+        return {
+          address: {
+            line1: defaultBillingAddress.streetLine1 || order.shippingAddress?.streetLine1,
+            postal_code: defaultBillingAddress.postalCode || order.shippingAddress?.postalCode,
+            city: defaultBillingAddress.city || order.shippingAddress?.city,
+            state: defaultBillingAddress.province || order.shippingAddress?.province,
+            country: defaultBillingAddress.country.code || order.shippingAddress?.countryCode,
+          },
+        };
+      }
+    }),
+  ],
+};
+```
 
 **Examples:**
 
@@ -12720,9 +12810,37 @@ Configures one or more AuthenticationStrategies which defines how authentication
 
 Configures one or more AuthenticationStrategy which defines how authentication is handled in the Admin API.
 
-Allows custom Permissions to be defined, which can be used to restrict access to custom Graph
+Allows custom Permissions to be defined, which can be used to restrict access to custom GraphQL resolvers and REST controllers. This is done using the `PermissionDefinition` class in conjunction with the `@Allow` decorator.
 
-*[Content truncated]*
+Custom permissions are defined using `PermissionDefinition` and then added to this array. For example:
+
+```typescript
+import { PermissionDefinition } from '@vendure/core';
+
+const syncPermission = new PermissionDefinition({
+  name: 'SyncInventory',
+  description: 'Allows syncing stock levels via Admin API'
+});
+
+const config: VendureConfig = {
+  authOptions: {
+    customPermissions: [syncPermission],
+  },
+}
+```
+
+Then use the permission in your resolver:
+
+```typescript
+@Resolver()
+export class InventorySyncResolver {
+  @Allow(syncPermission.Permission)
+  @Mutation()
+  syncInventory() {
+    // Only users with the SyncInventory permission can execute this
+  }
+}
+```
 
 **Examples:**
 
@@ -18107,9 +18225,9 @@ Used to configure a customized instance of the default OrderProcess that ships w
 
 The DefaultOrderProcessOptions type defines all available options. If you require even more customization, you can create your own implementation of the OrderProcess interface.
 
-This is the built-i
+This is the built-in default OrderProcess that ships with Vendure. A customized version of this process can be created using the `configureDefaultOrderProcess` function, which allows you to pass in an object to enable/disable certain checks.
 
-*[Content truncated]*
+The default implementation manages order state transitions and includes validation checks such as verification that modifications have associated payments, confirmation that payment amounts cover order totals, validation of product variant existence, requirements for customer, shipping method, and stock availability before payment arrangement, and fulfillment state verification before shipping/delivery transitions.
 
 **Examples:**
 

@@ -355,24 +355,14 @@ export const config: VendureConfig = {
 
 ## Key Concepts
 
-Core Vendure architecture concepts (see `references/core_concepts.md` for detailed explanations):
+Core Vendure architecture concepts (see `references/core_concepts.md` and `references/developer_guide.md` for detailed explanations):
 
 - **Money & Currency** - Integer storage (100 = $1.00) avoids floating-point errors, multi-currency support at Channel level
 - **Order State Machine** - Customizable workflow (AddingItems → Delivered) via OrderProcess with interceptors
 - **Payment Flow** - Two-step (authorize/settle) or single-step via PaymentMethodHandler
 - **Collections** - Organize products with filters, inheritance, and custom CollectionFilter logic
-
-### Custom Fields
-- Add custom properties to entities (Product, Order, Customer, etc.)
-- Defined in `VendureConfig.customFields`
-- Automatically added to GraphQL schema
-- Supports relations to other entities
-
-### Plugins
-- **Structure**: `@VendurePlugin` decorator with imports, providers, configuration
-- **Lifecycle**: `onApplicationBootstrap`, `onApplicationShutdown` hooks
-- **Strategies**: Use `InjectableStrategy` pattern for extensibility
-- **Best Practice**: Always provide default implementations
+- **Custom Fields** - Add custom properties to entities via VendureConfig, automatically extend GraphQL schema, support relations and 10+ field types
+- **Plugins** - Core extensibility via @VendurePlugin decorator, lifecycle hooks (onApplicationBootstrap, etc.), InjectableStrategy pattern for pluggable behavior
 
 ## Reference Files
 

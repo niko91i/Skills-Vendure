@@ -373,14 +373,16 @@ Complete TypeScript API reference covering:
 - **Core Entities**: Order, Product, Customer, Payment, Fulfillment
 - **Services**: OrderService, ProductService, CustomerService, AssetService
 - **Strategies**: PaymentMethodHandler, ShippingCalculator, TaxCalculationStrategy
-- **Plugins**: EmailPlugin, AssetServerPlugin, StripePlugin
+- **Plugins**: EmailPlugin, AssetServerPlugin, StripePlugin, DashboardPlugin
+- **Dashboard API**: React hooks (useLocalFormat, useWidgetFilters, useDetailPage), components, defineDashboardExtension
 - **Admin UI**: Custom components, routes, alerts, navigation
 - **GraphQL**: Schema types, queries, mutations, subscriptions
 
 **Finding API components**: Use grep to locate specific classes:
 ```bash
 grep -n "^## PaymentMethodHandler" references/api.md
-grep -n "^## OrderService" references/api.md
+grep -n "^## DashboardPlugin" references/api.md
+grep -n "useLocalFormat" references/api.md
 ```
 
 ### Core Concepts (`core_concepts.md` - 16 pages)
@@ -416,6 +418,8 @@ Task-specific tutorials:
 
 ### Other Documentation (`other.md`)
 Miscellaneous topics:
+- **Dashboard Widgets**: Creating custom Insights page widgets with useWidgetFilters and DashboardBaseWidget
+- **Relation Selectors**: Single/multi selection components for dashboard forms
 - Deployment strategies
 - Performance optimization
 - Testing approaches
@@ -470,6 +474,7 @@ Use the Read tool to access specific reference files when detailed information i
 | Query products | Pattern 8 | api.md (GraphQL) |
 | Store prices | Pattern 9 | core_concepts.md (Money) |
 | Install Admin UI | Pattern 10 | getting_started.md |
+| Dashboard widgets | - | other.md (Insights Widgets) |
 
 ## Resources
 

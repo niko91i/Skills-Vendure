@@ -1,0 +1,5 @@
+# This directory is reserved for asset files
+
+Files not intended to be loaded into context, but used within the output (templates, images, icons, boilerplate code, fonts, sample documents).
+
+Currently empty - assets may be added in future versions.

@@ -27,6 +27,12 @@ Temporary Items
 *.bak
 SKILL.md.backup
 
+# Skill creator temp directories
+skill-creator/
+
+# Claude Code configuration
+.claude/
+
 # Editor directories and files
 .vscode/
 .idea/

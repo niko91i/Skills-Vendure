@@ -146,20 +146,35 @@ Reference: https://owasp.org/Top10/A07_2021-Identification_and_Authentication_Fa
 
 Reference: https://owasp.org/Top10/A08_2021-Software_and_Data_Integrity_Failures/
 
-Reference: https://owas
+Reference: https://owasp.org/Top10/A09_2021-Security_Logging_and_Monitoring_Failures/
 
-*[Content truncated]*
+Reference: https://owasp.org/Top10/A10_2021-Server-Side_Request_Forgery_(SSRF)/
+
+The security page provides a comprehensive assessment mapping Vendure's built-in protections against all 10 OWASP vulnerabilities, including cryptographic defaults (bcrypt with 12 salt rounds), parameterized database queries, role-based access control, and GraphQL validation safeguards.
 
 **Examples:**
 
 Example 1 (ts):
 ```ts
-import { VendureConfig } from '@vendure/core';export const config: VendureConfig = {  authOptions: {    tokenMethod: ['bearer', 'cookie'],    superadminCredentials: {      identifier: process.env.SUPERADMIN_USERNAME,      password: process.env.SUPERADMIN_PASSWORD,    },  },  // ...};
+import { VendureConfig } from '@vendure/core';
+
+export const config: VendureConfig = {
+  authOptions: {
+    tokenMethod: ['bearer', 'cookie'],
+    superadminCredentials: {
+      identifier: process.env.SUPERADMIN_USERNAME,
+      password: process.env.SUPERADMIN_PASSWORD,
+    },
+  },
+  // ...
+};
 ```
 
 Example 2 (sh):
 ```sh
-npm install @vendure/harden-plugin# oryarn add @vendure/harden-plugin
+npm install @vendure/harden-plugin
+# or
+yarn add @vendure/harden-plugin
 ```
 
 Example 3 (ts):
@@ -376,9 +391,48 @@ Here are some examples of using the Find API:
 
 Further examples can be found in the TypeORM Find Options documentation.
 
-When the Find API is not sufficient, the QueryBuilder API can be used to construct more complex queries. For instance, if you want to have a more complex WHERE clause than what can be achieved with the Find API, or if you want 
+When the Find API is not sufficient, the QueryBuilder API can be used to construct more complex queries. For instance, if you want to have a more complex WHERE clause than what can be achieved with the Find API, or if you want to use sub-queries or other advanced SQL features.
 
-*[Content truncated]*
+**QueryBuilder API Usage:**
+
+The QueryBuilder provides more granular control over database queries but requires explicit relation joins:
+
+```typescript
+const products = await this.connection.getRepository(ctx, Product)
+  .createQueryBuilder('product')
+  .leftJoinAndSelect('product.variants', 'variant')
+  .leftJoinAndSelect('variant.prices', 'price')
+  .where('product.deletedAt IS NULL')
+  .andWhere('variant.enabled = :enabled', { enabled: true })
+  .getMany();
+```
+
+**Critical Pattern for Relations:**
+
+A significant challenge arises when relations aren't explicitly joined—code compiles successfully but fails at runtime. Always explicitly specify relations through the `relations` option in the Find API or using `leftJoinAndSelect()` in QueryBuilder queries.
+
+**Entity Hydration Solution:**
+
+The `EntityHydrator` class addresses scenarios where you receive entities from Vendure without controlling the initial database fetch. It ensures specific relations are loaded before use:
+
+```typescript
+import { EntityHydrator } from '@vendure/core';
+
+@Injectable()
+export class MyService {
+  constructor(private entityHydrator: EntityHydrator) {}
+
+  async processProduct(ctx: RequestContext, product: Product) {
+    // Ensure the variants relation is loaded
+    await this.entityHydrator.hydrate(ctx, product, {
+      relations: ['variants', 'variants.prices'],
+    });
+
+    // Now we can safely access product.variants
+    const variantCount = product.variants.length;
+  }
+}
+```
 
 **Examples:**
 
@@ -453,9 +507,38 @@ Here's how a response would look in both the success and error result cases:
 
 If you are writing a plugin which deals with internal Vendure service methods that may return ErrorResults, then you can use the isGraphQlErrorResult() function to check whether the result is an ErrorResult:
 
-B
+```typescript
+import { Injectable } from '@nestjs/common';
+import { isGraphQlErrorResult, Order, OrderService, RequestContext } from '@vendure/core';
 
-*[Content truncated]*
+@Injectable()
+export class MyService {
+  constructor(private orderService: OrderService) {}
+
+  async myMethod(ctx: RequestContext, order: Order, newState: OrderState) {
+    const transitionResult = await this.orderService.transitionToState(
+      ctx,
+      order.id,
+      newState
+    );
+
+    if (isGraphQlErrorResult(transitionResult)) {
+      // Handle the error
+      throw transitionResult;
+    }
+
+    // Success - transitionResult is now typed as Order
+    return transitionResult;
+  }
+}
+```
+
+**Best Practices:**
+
+1. **Client-Side**: Use exhaustive switch statements with `__typename` to handle all possible result types
+2. **Plugin Code**: Use `isGraphQlErrorResult()` to differentiate ErrorResults from successful responses
+3. **Type Safety**: Leverage TypeScript's type narrowing after error checks
+4. **Error Propagation**: Throw ErrorResults in plugin code to propagate them up to GraphQL responses
 
 **Examples:**
 
@@ -571,9 +654,18 @@ To make it all work, ensure that the DataLoaderService is loaded in your plugin 
 
 Dataloaders map the result in the same order as the ids you send to the dataloader. Dataloaders expect the same order and array size in the return result.
 
-In other words: ensure that the order of your returned 
+In other words: ensure that the order of your returned results matches the input IDs exactly, and include all values without omission. This is critical for correct dataloader operation.
 
-*[Content truncated]*
+**Performance Impact:**
+
+When properly implemented, dataloaders transform observable query patterns. Before optimization, you'll see cascading queries for each item; after implementation, you'll observe a single query using multiple IDs. This batching approach provides substantial performance improvements, particularly under high system load with larger datasets.
+
+**Key Implementation Points:**
+
+1. **Request-Scoped**: DataLoaderService operates at the GraphQL request scope level
+2. **Channel-Specific**: Dataloaders are organized by channel for multi-tenant support
+3. **No CustomField Relations Needed**: CustomField relations are automatically included in root entity queries
+4. **Service Registration**: The DataloaderService must be registered as a provider in your plugin configuration
 
 **Examples:**
 
@@ -704,9 +796,20 @@ You can read more about this issue in typeorm/issues/7054
 
 Now we'll dive into what's going on under the hood.
 
-Vendure expos
+Vendure exposes three primary migration functions:
 
-*[Content truncated]*
+- **`generateMigration()`** - Creates new migration files based on schema differences
+- **`runMigrations()`** - Executes pending migrations
+- **`revertLastMigration()`** - Rolls back the last applied migration
+
+TypeORM tracks applied migrations in a database `migrations` table to prevent duplicate execution.
+
+**Key Best Practices:**
+
+1. **Disable synchronize in production**: Set `synchronize: false` in `dbConnectionOptions` to prevent automatic schema updates
+2. **Always backup before migrating**: Especially critical for MySQL/MariaDB due to lack of transaction support
+3. **Review generated migrations**: Verify the SQL commands before running them
+4. **Test migrations on staging**: Always test migration scripts on a staging environment first
 
 **Examples:**
 
@@ -778,15 +881,52 @@ Adding this plugin to your Vendure config plugins array will now apply these mid
 
 Apollo Server (the underlying GraphQL server library used by Vendure) allows you to define plugins which can be used to hook into various stages of the GraphQL request lifecycle and perform tasks such as data transformation. These are defined via the apiOptions.apolloServerPlugins config property.
 
-A "resolver" is a GraphQL concept, and refers to a function which is respon
+A "resolver" is a GraphQL concept, and refers to a function which is responsible for returning the data for a particular field. In Vendure's implementation, resolvers can be individual functions or classes containing multiple resolver functions.
 
-*[Content truncated]*
+**How Resolvers Work:**
+
+For every GraphQL query or mutation, there's a corresponding resolver function that handles data retrieval or updates:
+
+```typescript
+import { Query, Resolver, Args } from '@nestjs/graphql';
+import { Ctx, RequestContext, ProductService } from '@vendure/core';
+
+@Resolver()
+export class ShopProductsResolver {
+  constructor(private productService: ProductService) {}
+
+  @Query()
+  product(@Ctx() ctx: RequestContext, @Args() args: { id: string }) {
+    return this.productService.findOne(ctx, args.id);
+  }
+}
+```
+
+**Key Decorators:**
+
+- `@Resolver()` - Marks a class as handling GraphQL operations
+- `@Query()` - Designates methods that resolve query operations
+- `@Mutation()` - Designates methods that resolve mutation operations
+- `@Ctx()` - Injects the RequestContext object
+- `@Args()` - Injects query/mutation arguments
+- `@ResolveField()` - Handles relationships between types
+- `@Parent()` - Accesses the parent object being resolved
+
+**Best Practice:**
+
+Resolver functions should be kept as simple as possible, and the bulk of the business logic should be delegated to the service layer. This separation of concerns keeps the API layer lightweight and maintainable.
 
 **Examples:**
 
 Example 1 (graphql):
 ```graphql
-query {    product(id: "1") {        id        name        description    }}
+query {
+  product(id: "1") {
+    id
+    name
+    description
+  }
+}
 ```
 
 Example 2 (json):
@@ -1110,9 +1250,52 @@ Additionally, we implement Node which is a built-in GraphQL interface.
 
 Now we can add this type to both the Admin and Shop APIs:
 
-Let's say you want to add a new field to the ProductVariant type to allow the storefront to display some indication of how long a particular product variant would ta
+Let's say you want to add a new field to the ProductVariant type to allow the storefront to display some indication of how long a particular product variant would take to deliver.
 
-*[Content truncated]*
+**Extending ProductVariant with Custom Fields:**
+
+We can add a non-nullable 'delivery' field of type 'DeliveryEstimate' to the ProductVariant GraphQL type:
+
+```typescript
+import gql from 'graphql-tag';
+
+export const shopApiExtensions = gql`
+  type DeliveryEstimate {
+    from: Int!
+    to: Int!
+  }
+
+  extend type ProductVariant {
+    delivery: DeliveryEstimate!
+  }
+`;
+```
+
+**Implementing the Field Resolver:**
+
+Define an entity resolver for the 'delivery' field on the ProductVariant type:
+
+```typescript
+import { Parent, ResolveField, Resolver } from '@nestjs/graphql';
+import { Ctx, RequestContext, ProductVariant } from '@vendure/core';
+import { DeliveryEstimateService } from '../services/delivery-estimate.service';
+
+@Resolver('ProductVariant')
+export class ProductVariantEntityResolver {
+    constructor(private deliveryEstimateService: DeliveryEstimateService) {}
+
+    @ResolveField()
+    delivery(@Ctx() ctx: RequestContext, @Parent() variant: ProductVariant) {
+        return this.deliveryEstimateService.getEstimate(ctx, variant.id);
+    }
+}
+```
+
+**Key Points:**
+- The `@Resolver()` decorator has an argument matching the type name, telling NestJS which type this resolver targets
+- The `@ResolveField()` decorator marks methods as field resolvers
+- Method names match schema field names
+- Always use the `@Ctx()` decorator to inject the `RequestContext` into resolver functions
 
 **Examples:**
 
@@ -1245,9 +1428,68 @@ Vendure uses a job queue to handle the processing of certain tasks which are typ
 
 In the normal request-response, all intermediate tasks (looking up data in the database, performing business logic etc.) occur before the response can be returned. For most operations this is fine, since those intermediate tasks are very fast.
 
-Some operations however will need to perform much longer-running tasks. For example, updating the search index on thousands of products could take up to a minute or more. In this
+Some operations however will need to perform much longer-running tasks. For example, updating the search index on thousands of products could take up to a minute or more. In this case, we don't want to block the response while this task completes.
 
-*[Content truncated]*
+**The Job Queue System:**
+
+Vendure uses a job queue to handle the processing of tasks which are too slow to run in the normal request-response cycle. Jobs are processed by a separate **Worker process**, which can be scaled independently of the main server.
+
+**Setting Up a Worker Process:**
+
+Create a dedicated worker entry file and use `bootstrapWorker()` to start processing jobs:
+
+```typescript
+import { bootstrapWorker } from '@vendure/core';
+import { config } from './vendure-config';
+
+bootstrapWorker(config)
+    .then(worker => worker.startJobQueue())
+    .catch(err => {
+        console.log(err);
+    });
+```
+
+**Dedicated Workers for Specific Queues:**
+
+Configure workers to process only specific job queues:
+
+```typescript
+import { bootstrapWorker, mergeConfig } from '@vendure/core';
+import { config } from './vendure-config';
+
+const transcoderConfig = mergeConfig(config, {
+    jobQueueOptions: {
+      activeQueues: ['transcode-video'],
+    }
+});
+
+bootstrapWorker(transcoderConfig)
+  .then(worker => worker.startJobQueue())
+  .catch(err => {
+    console.log(err);
+  });
+```
+
+**Process Context Detection:**
+
+Use the `ProcessContext` provider to execute code conditionally based on whether it's running in the server or worker:
+
+```typescript
+import { Injectable, OnApplicationBootstrap } from '@nestjs/common';
+import { ProcessContext } from '@vendure/core';
+
+@Injectable()
+export class MyService implements OnApplicationBootstrap {
+    constructor(private processContext: ProcessContext) {}
+
+    onApplicationBootstrap() {
+        if (this.processContext.isServer) {
+            // code which will only execute when running in
+            // the server process
+        }
+    }
+}
+```
 
 **Examples:**
 
@@ -1394,20 +1636,35 @@ Reference: https://owasp.org/Top10/A07_2021-Identification_and_Authentication_Fa
 
 Reference: https://owasp.org/Top10/A08_2021-Software_and_Data_Integrity_Failures/
 
-Reference: https://owas
+Reference: https://owasp.org/Top10/A09_2021-Security_Logging_and_Monitoring_Failures/
 
-*[Content truncated]*
+Reference: https://owasp.org/Top10/A10_2021-Server-Side_Request_Forgery_(SSRF)/
+
+The security page provides a comprehensive assessment mapping Vendure's built-in protections against all 10 OWASP vulnerabilities, including cryptographic defaults (bcrypt with 12 salt rounds), parameterized database queries, role-based access control, and GraphQL validation safeguards.
 
 **Examples:**
 
 Example 1 (ts):
 ```ts
-import { VendureConfig } from '@vendure/core';export const config: VendureConfig = {  authOptions: {    tokenMethod: ['bearer', 'cookie'],    superadminCredentials: {      identifier: process.env.SUPERADMIN_USERNAME,      password: process.env.SUPERADMIN_PASSWORD,    },  },  // ...};
+import { VendureConfig } from '@vendure/core';
+
+export const config: VendureConfig = {
+  authOptions: {
+    tokenMethod: ['bearer', 'cookie'],
+    superadminCredentials: {
+      identifier: process.env.SUPERADMIN_USERNAME,
+      password: process.env.SUPERADMIN_PASSWORD,
+    },
+  },
+  // ...
+};
 ```
 
 Example 2 (sh):
 ```sh
-npm install @vendure/harden-plugin# oryarn add @vendure/harden-plugin
+npm install @vendure/harden-plugin
+# or
+yarn add @vendure/harden-plugin
 ```
 
 Example 3 (ts):
@@ -1470,9 +1727,20 @@ You can read more about this issue in typeorm/issues/7054
 
 Now we'll dive into what's going on under the hood.
 
-Vendure expos
+Vendure exposes three primary migration functions:
 
-*[Content truncated]*
+- **`generateMigration()`** - Creates new migration files based on schema differences
+- **`runMigrations()`** - Executes pending migrations
+- **`revertLastMigration()`** - Rolls back the last applied migration
+
+TypeORM tracks applied migrations in a database `migrations` table to prevent duplicate execution.
+
+**Key Best Practices:**
+
+1. **Disable synchronize in production**: Set `synchronize: false` in `dbConnectionOptions` to prevent automatic schema updates
+2. **Always backup before migrating**: Especially critical for MySQL/MariaDB due to lack of transaction support
+3. **Review generated migrations**: Verify the SQL commands before running them
+4. **Test migrations on staging**: Always test migration scripts on a staging environment first
 
 **Examples:**
 
@@ -1548,9 +1816,42 @@ This will guide you through the creation of a new plugin and automate all aspect
 
 This is the recommended way of creating a new plugin.
 
-Although the Vendure CLI is the recommend
+Although the Vendure CLI is the recommended way to create a new plugin, it can be useful to understand the process of creating a plugin manually.
 
-*[Content truncated]*
+**Plugin Fundamentals:**
+
+All plugins require the `@VendurePlugin()` decorator and typically import `PluginCommonModule`:
+
+```typescript
+import { PluginCommonModule, VendurePlugin } from '@vendure/core';
+
+@VendurePlugin({
+    imports: [PluginCommonModule],
+})
+export class CustomPlugin {}
+```
+
+**Core Metadata Properties:**
+- **imports**: NestJS module dependencies
+- **providers**: Injectable services
+- **controllers**: REST endpoints
+- **exports**: Providers available to other plugins
+- **configuration**: Modifies VendureConfig pre-bootstrap
+- **shopApiExtensions**: Extends Shop GraphQL API
+- **adminApiExtensions**: Extends Admin GraphQL API
+- **entities**: Defines new database entities
+- **compatibility**: Declares version compatibility via semver range
+
+**Lifecycle Management:**
+
+Plugins inherit NestJS lifecycle hooks executed in both server and worker contexts:
+- `onModuleInit`
+- `onApplicationBootstrap`
+- `onModuleDestroy`
+- `beforeApplicationShutdown`
+- `onApplicationShutdown`
+
+The `configure()` method applies middleware exclusively in the server context, not the worker.
 
 **Examples:**
 
@@ -1761,9 +2062,45 @@ The second problem is handled by having tasks only executed on worker processes.
 
 There is some overlap between the use of a scheduled task and a job queue job. They both perform some task on the worker, independent of requests coming in to the server.
 
-The first difference is 
+**Key Differences:**
 
-*[Content truncated]*
+| Aspect | Scheduled Tasks | Job Queue |
+|--------|-----------------|-----------|
+| **Triggering** | Automatic per schedule | Manually triggered |
+| **Execution Order** | Immediate when scheduled | Queued; respects prior jobs |
+| **Multi-Instance Safety** | Built-in locking mechanism | Inherent queue ordering |
+| **Recording** | Last result only | Full history of executions |
+| **Use Case** | "According to schedule, exactly once" | "Process eventually, track results" |
+
+**When to Use Each:**
+
+**Choose scheduled tasks for:**
+- Regular maintenance (session cleanup, cache refresh)
+- Time-based operations (daily reports, midnight syncs)
+- Work that must run exactly once across distributed systems
+
+**Choose job queues for:**
+- Long-running processes (resource-intensive operations)
+- Work requiring historical audit trails
+- Operations triggered by specific events
+- Tasks where queuing delays are acceptable
+
+**Combining Both Approaches:**
+
+A scheduled task can add jobs to the queue, combining benefits:
+
+```typescript
+// Schedule kicks off a job for better resource management
+async execute({injector}) {
+    const jobQueue = injector.get(JobQueueService);
+    await jobQueue.add({
+        queueName: 'sitemap-generation',
+        data: {}
+    });
+}
+```
+
+This pattern leverages the scheduler's guarantee of single execution while delegating actual work to the job queue's managed processing.
 
 **Examples:**
 
@@ -1915,9 +2252,66 @@ Whereas strategies are typically used to provide a single implementation of a pa
 
 For example, Vendure ships with a set of default CollectionFilters:
 
-When setting up a Collection,
+```typescript
+export const defaultCollectionFilters = [
+    facetValueCollectionFilter,
+    variantNameCollectionFilter,
+    variantIdCollectionFilter,
+    productIdCollectionFilter,
+];
+```
 
-*[Content truncated]*
+When setting up a Collection, you can select and configure these filters through the Vendure Dashboard to determine which products are included.
+
+**Creating Custom Collection Filters:**
+
+You can create custom filters to match products based on specific criteria. Here's an example that filters by SKU:
+
+```typescript
+import { CollectionFilter, LanguageCode } from '@vendure/core';
+
+export const skuCollectionFilter = new CollectionFilter({
+    args: {
+        sku: {
+            type: 'string',
+            label: [{ languageCode: LanguageCode.en, value: 'SKU' }],
+            description: [
+                {
+                    languageCode: LanguageCode.en,
+                    value: 'Matches any product variants with an SKU containing this value',
+                },
+            ],
+        },
+    },
+    code: 'variant-sku-filter',
+    description: [{ languageCode: LanguageCode.en, value: 'Filter by matching SKU' }],
+
+    apply: (qb, args) => {
+        const LIKE = qb.connection.options.type === 'postgres' ? 'ILIKE' : 'LIKE';
+        return qb.andWhere(`productVariant.sku ${LIKE} :sku`, {
+            sku: `%${args.sku}%`
+        });
+    },
+});
+```
+
+**Registering Custom Filters:**
+
+Add your custom filter to the Vendure configuration:
+
+```typescript
+import { defaultCollectionFilters, VendureConfig } from '@vendure/core';
+import { skuCollectionFilter } from './config/sku-collection-filter';
+
+export const config: VendureConfig = {
+    catalogOptions: {
+        collectionFilters: [
+            ...defaultCollectionFilters,
+            skuCollectionFilter
+        ],
+    },
+};
+```
 
 **Examples:**
 
@@ -1981,9 +2375,60 @@ Notice that we pass a VendureConfig object into the createTestEnvironment functi
 
 Note: If you need to deeply merge in some custom configuration, use the mergeConfig function which is provided by @vendure/core.
 
-The TestServer needs to be initialized before it can be used. The TestServer.init() method takes an options object which defines how to populate the serve
+The TestServer needs to be initialized before it can be used. The TestServer.init() method takes an options object which defines how to populate the server with data:
 
-*[Content truncated]*
+- **`productsCsvPath`**: Path to CSV file with product data (optional)
+- **`initialData`**: Object defining non-product data like Collections and ShippingMethods
+- **`customerCount`**: Number of fake customers to generate (defaults to 10)
+
+**Test Environment Creation:**
+
+```typescript
+import { createTestEnvironment, testConfig } from '@vendure/testing';
+import { describe, beforeAll, afterAll } from 'vitest';
+import { MyPlugin } from '../my-plugin.ts';
+
+describe('my plugin', () => {
+    const { server, adminClient, shopClient } = createTestEnvironment({
+        ...testConfig,
+        plugins: [MyPlugin],
+    });
+
+    beforeAll(async () => {
+        await server.init({
+            productsCsvPath: path.join(__dirname, 'fixtures/e2e-products.csv'),
+            initialData: myInitialData,
+            customerCount: 2,
+        });
+        await adminClient.asSuperAdmin();
+    }, 60000);
+
+    afterAll(async () => {
+        await server.destroy();
+    });
+});
+```
+
+**Writing Tests:**
+
+```typescript
+import gql from 'graphql-tag';
+import { it, expect } from 'vitest';
+
+it('myNewQuery returns the expected result', async () => {
+    adminClient.asSuperAdmin();
+    const query = gql`
+        query MyNewQuery($id: ID!) {
+            myNewQuery(id: $id) {
+                field1
+                field2
+            }
+        }
+    `;
+    const result = await adminClient.query(query, { id: 123 });
+    expect(result.myNewQuery).toEqual({ /* ... */ });
+});
+```
 
 **Examples:**
 
@@ -2227,9 +2672,51 @@ This means that if one instance sets a cache entry, it will be available to all 
 
 The CacheService can be injected into any service, resolver, strategy or configurable operation.
 
-The data stored in the cache must be serializable. This means you cannot store instances of 
+The data stored in the cache must be serializable. This means you cannot store instances of classes, functions, or other non-serializable data types.
 
-*[Content truncated]*
+This restriction means you're limited to storing basic JavaScript types like strings, numbers, booleans, arrays, and plain objects. Complex class instances and function references cannot be persisted in the cache.
+
+**Cache Key Naming Conventions:**
+
+Proper key naming prevents conflicts across your application. The recommended approach combines class and method names as a namespace prefix with unique identifiers specific to the cached data.
+
+Example pattern:
+```typescript
+getVariantIds(productId: ID): Promise<ID[]> {
+    const cacheKey = `ProductService.getVariantIds:${productId}`;
+    // ... cache operations
+}
+```
+
+**Cache Eviction Strategies:**
+
+Two primary eviction mechanisms exist:
+
+**Time-to-Live (TTL)**: Set when storing entries, determining how long they persist before automatic removal.
+
+```typescript
+await this.cacheService.set(cacheKey, newValue, { ttl: 60 * 1000 }); // 1 minute
+```
+
+**Manual Deletion**: Remove entries programmatically when needed.
+
+```typescript
+await this.cacheService.delete(cacheKey);
+```
+
+**Cache Tags Usage:**
+
+Tags enable batch invalidation of related entries without knowing individual keys:
+
+```typescript
+const cacheKey = `ProductService.getVariantIds:${productId}`;
+await this.cacheService.set(cacheKey, newValue, {
+    tags: [`Product:${productId}`]
+});
+
+// Later, invalidate all Product-related entries
+await this.cacheService.invalidateTags([`Product:${productId}`]);
+```
 
 **Examples:**
 
@@ -2468,9 +2955,32 @@ An array of localized labels for the field. These are used in the Dashboard to l
 
 An array of localized descriptions for the field. These are used in the Dashboard to describe the field.
 
-Whether the custom field is available via t
+Whether the custom field is available via the GraphQL APIs or only accessible internally within TypeScript plugins.
 
-*[Content truncated]*
+**Available via GraphQL APIs:**
+- Set to `false` to make the field `internal: true`
+- Internal fields are inaccessible via GraphQL but usable in TypeScript code
+- Defaults to `false` (field is accessible via GraphQL)
+
+**Common Custom Field Properties:**
+
+**`name`**: The name of the field. Used as the column name in the database and as the GraphQL field name. Should not contain spaces and by convention should be camelCased.
+
+**`type`**: The type of data that will be stored in the field. Available types include: `string`, `localeString`, `int`, `float`, `boolean`, `datetime`, `relation`, `text`, `localeText`, and `struct`.
+
+**`list`**: If set to `true`, the field will be an array of the specified type. Defaults to `false`. Setting a custom field as a list affects GraphQL types, dashboard UI, and database storage (simple-json for primitives).
+
+**`label`**: An array of localized labels for the field, used in the Dashboard to label the field.
+
+**`description`**: An array of localized descriptions for the field, used in the Dashboard to describe the field.
+
+**`nullable`**: Determines if a custom field can store null values in the database. If set to `false`, a `defaultValue` must be provided to prevent database errors.
+
+**`internal`**: If set to `true`, makes the field inaccessible via GraphQL APIs but usable within TypeScript plugins. Defaults to `false`.
+
+**`readonly`**: If set to `true`, prevents modification of the field value via the GraphQL API.
+
+**`ui`**: Object for customizing the form input component in the Admin UI. Can specify `component`, `tab`, and other UI-related options.
 
 **Examples:**
 
@@ -2598,9 +3108,84 @@ In order to tell TypeScript about the existence of this new variable, you can ad
 
 You can then use the environment variable in your config file:
 
-In production, the way you mana
+In production, the way you manage environment variables depends on your hosting provider. Consult the Production Configuration guide for specific deployment strategies.
 
-*[Content truncated]*
+**Declaring Environment Variables in TypeScript:**
+
+Define variables in `src/environment.d.ts` for TypeScript support:
+
+```typescript
+export {};
+
+declare global {
+    namespace NodeJS {
+        interface ProcessEnv {
+            APP_ENV: string;
+            COOKIE_SECRET: string;
+            SUPERADMIN_USERNAME: string;
+            SUPERADMIN_PASSWORD: string;
+            MY_API_KEY: string;
+        }
+    }
+}
+```
+
+Then reference them safely in your config:
+
+```typescript
+export const config: VendureConfig = {
+  plugins: [
+    MyPlugin.init({
+      apiKey: process.env.MY_API_KEY,
+    }),
+  ],
+  // ...
+}
+```
+
+**Splitting Config Across Files:**
+
+For large configurations, especially with multiple plugins, separate concerns into dedicated files:
+
+```typescript
+// src/vendure-config-plugins.ts
+import { AssetServerPlugin, DefaultJobQueuePlugin, VendureConfig } from '@vendure/core';
+import { ElasticsearchPlugin } from '@vendure/elasticsearch-plugin';
+import { EmailPlugin } from '@vendure/email-plugin';
+import { CustomPlugin } from './plugins/custom-plugin';
+
+export const plugins: VendureConfig['plugins'] = [
+  CustomPlugin,
+  AssetServerPlugin.init({
+      route: 'assets',
+      assetUploadDir: path.join(__dirname, 'assets'),
+      port: 5002,
+  }),
+  DefaultJobQueuePlugin,
+  ElasticsearchPlugin.init({
+      host: 'localhost',
+      port: 9200,
+  }),
+  EmailPlugin.init({
+    // ...lots of lines of config
+  }),
+];
+```
+
+Import and compose in your main config:
+
+```typescript
+// src/vendure-config.ts
+import { VendureConfig } from '@vendure/core';
+import { plugins } from './vendure-config-plugins';
+
+export const config: VendureConfig = {
+  plugins,
+  // ...
+}
+```
+
+This modular approach keeps configuration maintainable as your system grows.
 
 **Examples:**
 
@@ -2713,9 +3298,38 @@ Here's how a response would look in both the success and error result cases:
 
 If you are writing a plugin which deals with internal Vendure service methods that may return ErrorResults, then you can use the isGraphQlErrorResult() function to check whether the result is an ErrorResult:
 
-B
+```typescript
+import { Injectable } from '@nestjs/common';
+import { isGraphQlErrorResult, Order, OrderService, RequestContext } from '@vendure/core';
 
-*[Content truncated]*
+@Injectable()
+export class MyService {
+  constructor(private orderService: OrderService) {}
+
+  async myMethod(ctx: RequestContext, order: Order, newState: OrderState) {
+    const transitionResult = await this.orderService.transitionToState(
+      ctx,
+      order.id,
+      newState
+    );
+
+    if (isGraphQlErrorResult(transitionResult)) {
+      // Handle the error
+      throw transitionResult;
+    }
+
+    // Success - transitionResult is now typed as Order
+    return transitionResult;
+  }
+}
+```
+
+**Best Practices:**
+
+1. **Client-Side**: Use exhaustive switch statements with `__typename` to handle all possible result types
+2. **Plugin Code**: Use `isGraphQlErrorResult()` to differentiate ErrorResults from successful responses
+3. **Type Safety**: Leverage TypeScript's type narrowing after error checks
+4. **Error Propagation**: Throw ErrorResults in plugin code to propagate them up to GraphQL responses
 
 **Examples:**
 
@@ -2858,9 +3472,60 @@ Notice that we pass a VendureConfig object into the createTestEnvironment functi
 
 Note: If you need to deeply merge in some custom configuration, use the mergeConfig function which is provided by @vendure/core.
 
-The TestServer needs to be initialized before it can be used. The TestServer.init() method takes an options object which defines how to populate the serve
+The TestServer needs to be initialized before it can be used. The TestServer.init() method takes an options object which defines how to populate the server with data:
 
-*[Content truncated]*
+- **`productsCsvPath`**: Path to CSV file with product data (optional)
+- **`initialData`**: Object defining non-product data like Collections and ShippingMethods
+- **`customerCount`**: Number of fake customers to generate (defaults to 10)
+
+**Test Environment Creation:**
+
+```typescript
+import { createTestEnvironment, testConfig } from '@vendure/testing';
+import { describe, beforeAll, afterAll } from 'vitest';
+import { MyPlugin } from '../my-plugin.ts';
+
+describe('my plugin', () => {
+    const { server, adminClient, shopClient } = createTestEnvironment({
+        ...testConfig,
+        plugins: [MyPlugin],
+    });
+
+    beforeAll(async () => {
+        await server.init({
+            productsCsvPath: path.join(__dirname, 'fixtures/e2e-products.csv'),
+            initialData: myInitialData,
+            customerCount: 2,
+        });
+        await adminClient.asSuperAdmin();
+    }, 60000);
+
+    afterAll(async () => {
+        await server.destroy();
+    });
+});
+```
+
+**Writing Tests:**
+
+```typescript
+import gql from 'graphql-tag';
+import { it, expect } from 'vitest';
+
+it('myNewQuery returns the expected result', async () => {
+    adminClient.asSuperAdmin();
+    const query = gql`
+        query MyNewQuery($id: ID!) {
+            myNewQuery(id: $id) {
+                field1
+                field2
+            }
+        }
+    `;
+    const result = await adminClient.query(query, { id: 123 });
+    expect(result.myNewQuery).toEqual({ /* ... */ });
+});
+```
 
 **Examples:**
 
@@ -2987,9 +3652,24 @@ As well as product data, other initialization data can be populated using the In
 
 The @vendure/core package exposes a populate() function which can be used along with the data formats described above to populate your Vendure server:
 
-When removing the DefaultJobQueuePlugin from the plugins list as in the code snippet above, one should manually rebuild the search index in order for the newly added products to appear. In the Dashboard, this can be done by navigating to the product list view and 
+When removing the DefaultJobQueuePlugin from the plugins list as in the code snippet above, one should manually rebuild the search index in order for the newly added products to appear. In the Dashboard, this can be done by navigating to the product list view and clicking the button in the top right.
 
-*[Content truncated]*
+The interface provides a dedicated button in the top-right corner of the product list page for triggering a reindex operation.
+
+**Programmatic Search Index Rebuild:**
+
+For scripts, use the `SearchService`:
+
+```typescript
+const searchService = app.get(SearchService);
+await searchService.reindex(ctx);
+```
+
+**Key Import Considerations:**
+
+- **Remove JobQueuePlugin** during population to avoid generating unnecessary jobs
+- **Use specialized import services** (`FastImporterService`, `Importer`) rather than standard service-layer services for bulk imports, as they are optimized for speed and omit unnecessary checks
+- **Rebuild search index** after import completion to ensure newly added products appear in search results
 
 **Examples:**
 
@@ -3067,9 +3747,76 @@ The API described in this section was added in Vendure v2.2.0.
 
 When using the .ofType().subscribe() pattern, the event handler is non-blocking. This means that the code that publishes the event (the "publishing code") will have no knowledge of any subscribers, and in fact any subscribers will be executed after the code that published the event has completed (technically, any ongoing database transactions are completed before the event gets emitted to the subscribers). This follows the typical Observer pattern and is a good fit for most use-cases.
 
-However, the
+However, there are some scenarios where you may want the event handler to execute **during** the publishing code, rather than after it has completed. This is where **blocking event handlers** come in.
 
-*[Content truncated]*
+Blocking event handlers differ from regular event subscribers in several critical ways:
+
+| Aspect | Event Subscribers | Blocking Handlers |
+|--------|-------------------|-------------------|
+| **Execution** | Executed _after_ publishing code completes | Execute _during_ the publishing code |
+| **Error Handling** | Errors do not affect publishing code | Errors propagated to publishing code |
+| **Transactions** | Guaranteed to execute only after the publishing code transaction has completed | Executed within the transaction of the publishing code |
+| **Performance Impact** | Non-blocking; subscriber performance irrelevant | Blocking; handler speed directly affects publishing code |
+
+**When to use blocking handlers:**
+
+1. Critical operations requiring completion before publishing code continues
+2. Financial record manipulation where handler errors must rollback transactions
+3. Protection against server shutdowns before event subscribers execute
+
+**Implementation Example:**
+
+```typescript
+import { Injectable, OnModuleInit } from '@nestjs/common';
+import {
+  EventBus,
+  PluginCommonModule,
+  VendurePlugin,
+  CustomerEvent
+} from '@vendure/core';
+import { CustomerSyncService } from './services/customer-sync.service';
+
+@VendurePlugin({
+    imports: [PluginCommonModule],
+})
+export class MyPluginPlugin implements OnModuleInit {
+    constructor(
+        private eventBus: EventBus,
+        private customerSyncService: CustomerSyncService,
+    ) {}
+
+    onModuleInit() {
+        this.eventBus.registerBlockingEventHandler({
+            event: CustomerEvent,
+            id: 'sync-customer-details-handler',
+            handler: async event => {
+                await this.customerSyncService.triggerCustomerSyncJob(event);
+            },
+        });
+    }
+}
+```
+
+**Performance Considerations:**
+
+Blocking handlers must execute quickly. The system logs warnings for handlers exceeding 100ms execution time. Optimize by keeping operations minimal—ideally just queuing jobs rather than processing data directly.
+
+**Order of Execution:**
+
+When multiple handlers are registered, execution follows registration order. Use `before` or `after` options to enforce specific sequences:
+
+```typescript
+this.eventBus.registerBlockingEventHandler({
+    type: CustomerEvent,
+    id: 'check-customer-details-handler',
+    handler: async event => {
+        // Implementation
+    },
+    before: 'sync-customer-details-handler',
+});
+```
+
+This ensures the checking handler executes before the sync handler.
 
 **Examples:**
 

@@ -9,7 +9,7 @@ Comprehensive assistance with Vendure development, generated from official docum
 
 ## When to Use This Skill
 
-This skill should be triggered when:
+Trigger this skill when:
 - **Building headless e-commerce** applications with Node.js/TypeScript
 - **Working with GraphQL APIs** for products, orders, or customer management
 - **Implementing payment integrations** (Stripe, custom payment handlers)
@@ -36,9 +36,11 @@ This launches an interactive wizard:
 
 ```text
 ┌  Let's create a Vendure App ✨
+│
 │◆  How should we proceed?
 │  ● Quick Start (Get up and running in a single step)
 │  ○ Manual Configuration
+│
 └
 ```
 
@@ -251,40 +253,52 @@ export class MinMaxOrderInterceptor implements OrderInterceptor {
 }
 ```
 
-Register in config:
-
-```typescript
-orderOptions: {
-    orderInterceptors: [new MinMaxOrderInterceptor()],
-}
-```
-
 ---
 
-**Pattern 8: GraphQL Query Example**
+**Pattern 8: GraphQL Query - Search Products**
 
-Fetch products with prices:
+Search for products with faceted filtering:
 
-```graphql
-query GetProducts($options: ProductListOptions) {
-    products(options: $options) {
-        items {
-            id
-            name
-            slug
-            featuredAsset {
-                preview
+```typescript
+import gql from 'graphql-tag';
+
+const SEARCH_PRODUCTS = gql`
+    query SearchProducts($input: SearchInput!) {
+        search(input: $input) {
+            totalItems
+            facetValues {
+                count
+                facetValue {
+                    id
+                    name
+                    facet {
+                        id
+                        name
+                    }
+                }
             }
-            variants {
-                id
-                name
-                currencyCode
-                price
-                priceWithTax
+            items {
+                productId
+                productName
+                productAsset {
+                    id
+                    preview
+                }
+                slug
+                featuredAsset {
+                    preview
+                }
+                variants {
+                    id
+                    name
+                    currencyCode
+                    price
+                    priceWithTax
+                }
             }
         }
     }
-}
+`;
 ```
 
 ---
@@ -317,7 +331,7 @@ class Quote extends VendureEntity {
 
 **Pattern 10: Install Vendure Dashboard**
 
-Add the Admin UI to your project:
+Add the Admin UI to the project:
 
 ```bash
 npm install @vendure/dashboard
@@ -341,43 +355,14 @@ export const config: VendureConfig = {
 
 ## Key Concepts
 
-### Money & Currency
-- **Integer Storage**: All monetary values stored as integers (100 = $1.00)
-- **Why**: Avoids floating-point rounding errors
-- **GraphQL**: Uses custom `Money` scalar type
-- **Display**: Divide by 100 and format with `Intl.NumberFormat`
-- **Multi-Currency**: Set currencies at Channel level, prices stored per variant per currency
+Core Vendure architecture concepts (see `references/core_concepts.md` and `references/developer_guide.md` for detailed explanations):
 
-### Order State Machine
-- **Default States**: AddingItems → ArrangingPayment → PaymentAuthorized → PaymentSettled → PartiallyShipped → Shipped → PartiallyDelivered → Delivered
-- **Customizable**: Define custom states and transitions via `OrderProcess`
-- **Interceptors**: Use `OrderInterceptor` to validate/prevent state transitions
-- **Processes**: Combine `defaultOrderProcess` with custom processes
-
-### Payment Flow
-- **Two-Step**: Authorize (checkout) → Settle (fulfillment)
-- **Single-Step**: Authorize + Settle at checkout
-- **Handler**: Implement `PaymentMethodHandler` for provider integration
-- **Methods**: Create PaymentMethod entities in Admin UI
-
-### Custom Fields
-- Add custom properties to entities (Product, Order, Customer, etc.)
-- Defined in `VendureConfig.customFields`
-- Automatically added to GraphQL schema
-- Supports relations to other entities
-
-### Plugins
-- **Structure**: `@VendurePlugin` decorator with imports, providers, configuration
-- **Lifecycle**: `onApplicationBootstrap`, `onApplicationShutdown` hooks
-- **Strategies**: Use `InjectableStrategy` pattern for extensibility
-- **Best Practice**: Always provide default implementations
-
-### Collections
-- **Purpose**: Organize products into categories/hierarchies
-- **Filters**: Determine which product variants belong to collection
-- **Built-in Filters**: Facet values, product name, variant name
-- **Custom Filters**: Create with `CollectionFilter` class
-- **Inheritance**: Child collections can inherit parent filters
+- **Money & Currency** - Integer storage (100 = $1.00) avoids floating-point errors, multi-currency support at Channel level
+- **Order State Machine** - Customizable workflow (AddingItems → Delivered) via OrderProcess with interceptors
+- **Payment Flow** - Two-step (authorize/settle) or single-step via PaymentMethodHandler
+- **Collections** - Organize products with filters, inheritance, and custom CollectionFilter logic
+- **Custom Fields** - Add custom properties to entities via VendureConfig, automatically extend GraphQL schema, support relations and 10+ field types
+- **Plugins** - Core extensibility via @VendurePlugin decorator, lifecycle hooks (onApplicationBootstrap, etc.), InjectableStrategy pattern for pluggable behavior
 
 ## Reference Files
 
@@ -388,9 +373,17 @@ Complete TypeScript API reference covering:
 - **Core Entities**: Order, Product, Customer, Payment, Fulfillment
 - **Services**: OrderService, ProductService, CustomerService, AssetService
 - **Strategies**: PaymentMethodHandler, ShippingCalculator, TaxCalculationStrategy
-- **Plugins**: EmailPlugin, AssetServerPlugin, StripePlugin
+- **Plugins**: EmailPlugin, AssetServerPlugin, StripePlugin, DashboardPlugin
+- **Dashboard API**: React hooks (useLocalFormat, useWidgetFilters, useDetailPage), components, defineDashboardExtension
 - **Admin UI**: Custom components, routes, alerts, navigation
 - **GraphQL**: Schema types, queries, mutations, subscriptions
+
+**Finding API components**: Use grep to locate specific classes:
+```bash
+grep -n "^## PaymentMethodHandler" references/api.md
+grep -n "^## DashboardPlugin" references/api.md
+grep -n "useLocalFormat" references/api.md
+```
 
 ### Core Concepts (`core_concepts.md` - 16 pages)
 Foundational architecture and patterns:
@@ -425,6 +418,8 @@ Task-specific tutorials:
 
 ### Other Documentation (`other.md`)
 Miscellaneous topics:
+- **Dashboard Widgets**: Creating custom Insights page widgets with useWidgetFilters and DashboardBaseWidget
+- **Relation Selectors**: Single/multi selection components for dashboard forms
 - Deployment strategies
 - Performance optimization
 - Testing approaches
@@ -437,23 +432,23 @@ Admin UI usage and merchant workflows:
 - Customer management
 - Configuring shipping and taxes
 
-Use the `view` command to read specific reference files when detailed information is needed.
+Use the Read tool to access specific reference files when detailed information is needed.
 
 ## Working with This Skill
 
-### For Beginners
+### Getting Started Workflow
 1. **Start here**: Read `references/getting_started.md` for foundational setup
 2. **Understand core concepts**: Review `references/core_concepts.md` for Money, Orders, Payment flows
-3. **Build your first feature**: Follow Quick Reference patterns above
+3. **Build first features**: Follow Quick Reference patterns above
 4. **Explore examples**: Check `references/developer_guide.md` for real-world implementations
 
-### For Intermediate Users
+### Intermediate Development Workflow
 1. **Custom functionality**: Use `references/api.md` to find services and strategies
 2. **Plugin development**: Reference "Custom Strategies in Plugins" pattern above
 3. **Payment integration**: Follow Pattern 3 (Custom Payment Handler)
 4. **Email workflows**: Implement Pattern 4 (Email Event Handler)
 
-### For Advanced Users
+### Advanced Architecture Workflow
 1. **Architecture decisions**: Study strategy patterns in `references/developer_guide.md`
 2. **Performance**: Review caching, database optimization in `references/other.md`
 3. **Security**: Consult OWASP assessment in `references/developer_guide.md`
@@ -479,6 +474,7 @@ Use the `view` command to read specific reference files when detailed informatio
 | Query products | Pattern 8 | api.md (GraphQL) |
 | Store prices | Pattern 9 | core_concepts.md (Money) |
 | Install Admin UI | Pattern 10 | getting_started.md |
+| Dashboard widgets | - | other.md (Insights Widgets) |
 
 ## Resources
 

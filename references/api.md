@@ -71,9 +71,9 @@ Used to configure a customized instance of the default OrderProcess that ships w
 
 The DefaultOrderProcessOptions type defines all available options. If you require even more customization, you can create your own implementation of the OrderProcess interface.
 
-This is the built-i
+This is the built-in default OrderProcess that ships with Vendure. A customized version of this process can be created using the `configureDefaultOrderProcess` function, which allows you to pass in an object to enable/disable certain checks.
 
-*[Content truncated]*
+The default implementation manages order state transitions and includes validation checks such as verification that modifications have associated payments, confirmation that payment amounts cover order totals, validation of product variant existence, requirements for customer, shipping method, and stock availability before payment arrangement, and fulfillment state verification before shipping/delivery transitions.
 
 **Examples:**
 
@@ -274,9 +274,37 @@ Provide additional options to the Stripe payment intent creation. By default, th
 
 For example, if you want to provide a stripeAccount for the payment intent, you can do so like this:
 
-Provide additional parame
+Provide additional parameters to the Stripe customer creation. By default, the plugin will already pass the `email` and `name` parameters. This allows you to add additional fields such as address information to the Stripe customer object.
 
-*[Content truncated]*
+For example, if you want to provide address details for the customer, you can do so like this:
+
+```typescript
+import { EntityHydrator, VendureConfig } from '@vendure/core';
+import { StripePlugin } from '@vendure/payments-plugin/package/stripe';
+
+export const config: VendureConfig = {
+  plugins: [
+    StripePlugin.init({
+      storeCustomersInStripe: true,
+      customerCreateParams: async (injector, ctx, order) => {
+        const entityHydrator = injector.get(EntityHydrator);
+        const customer = order.customer;
+        await entityHydrator.hydrate(ctx, customer, { relations: ['addresses'] });
+        const defaultBillingAddress = customer.addresses.find(a => a.defaultBillingAddress) ?? customer.addresses[0];
+        return {
+          address: {
+            line1: defaultBillingAddress.streetLine1 || order.shippingAddress?.streetLine1,
+            postal_code: defaultBillingAddress.postalCode || order.shippingAddress?.postalCode,
+            city: defaultBillingAddress.city || order.shippingAddress?.city,
+            state: defaultBillingAddress.province || order.shippingAddress?.province,
+            country: defaultBillingAddress.country.code || order.shippingAddress?.countryCode,
+          },
+        };
+      }
+    }),
+  ],
+};
+```
 
 **Examples:**
 
@@ -933,9 +961,7 @@ Defines a predicate function which is used to determine whether the event will t
 
 A function which defines how the recipient email address should be extracted from the incoming event.
 
-The recipient can be a plain email address: 'foobar@example.com' Or with a formatted name (includes unicode support): 'Ноде Майлер <foobar@example.com>' Or a comma-separated list of addr
-
-*[Content truncated]*
+The recipient can be a plain email address: `'foobar@example.com'` Or with a formatted name (includes unicode support): `'Ноде Майлер <foobar@example.com>'` Or a comma-separated list of addresses: `'foobar@example.com, "Ноде Майлер" <bar@example.com>'`
 
 **Examples:**
 
@@ -1311,9 +1337,13 @@ True if the current anonymous session is only authorized to operate on entities 
 
 Translate the given i18n key
 
-Sets the replication mode for the current RequestContext. This mode determines whether the operations within this context should interact with the master database or a r
+Sets the replication mode for the current RequestContext. This mode determines whether the operations within this context should interact with the master database or a replica database. This allows for finer control over database query routing in distributed database environments.
 
-*[Content truncated]*
+Available modes:
+- `'master'`: Routes operations to the master database
+- `'replica'`: Routes operations to a replica database
+
+The replication mode can be retrieved using the `replicationMode` getter property.
 
 **Examples:**
 
@@ -2604,9 +2634,37 @@ Configures one or more AuthenticationStrategies which defines how authentication
 
 Configures one or more AuthenticationStrategy which defines how authentication is handled in the Admin API.
 
-Allows custom Permissions to be defined, which can be used to restrict access to custom Graph
+Allows custom Permissions to be defined, which can be used to restrict access to custom GraphQL resolvers and REST controllers. This is done using the `PermissionDefinition` class in conjunction with the `@Allow` decorator.
 
-*[Content truncated]*
+Custom permissions are defined using `PermissionDefinition` and then added to this array. For example:
+
+```typescript
+import { PermissionDefinition } from '@vendure/core';
+
+const syncPermission = new PermissionDefinition({
+  name: 'SyncInventory',
+  description: 'Allows syncing stock levels via Admin API'
+});
+
+const config: VendureConfig = {
+  authOptions: {
+    customPermissions: [syncPermission],
+  },
+}
+```
+
+Then use the permission in your resolver:
+
+```typescript
+@Resolver()
+export class InventorySyncResolver {
+  @Allow(syncPermission.Permission)
+  @Mutation()
+  syncInventory() {
+    // Only users with the SyncInventory permission can execute this
+  }
+}
+```
 
 **Examples:**
 
@@ -3686,9 +3744,9 @@ By default, the latest price will be used. Any price changes resulting from usin
 
 Defines the point of the order process at which the Order is set as "placed".
 
-Defines the strategy used to determine the active O
+Defines the strategy used to determine the active Order when performing Shop API operations such as `activeOrder` and `addItemToOrder`. The strategy uses the active Session as its foundation mechanism.
 
-*[Content truncated]*
+Since v1.9.0, you can define multiple strategies which will be checked in order, using the first one that returns an Order.
 
 **Examples:**
 
@@ -5647,9 +5705,13 @@ True if the current anonymous session is only authorized to operate on entities 
 
 Translate the given i18n key
 
-Sets the replication mode for the current RequestContext. This mode determines whether the operations within this context should interact with the master database or a r
+Sets the replication mode for the current RequestContext. This mode determines whether the operations within this context should interact with the master database or a replica database. This allows for finer control over database query routing in distributed database environments.
 
-*[Content truncated]*
+Available modes:
+- `'master'`: Routes operations to the master database
+- `'replica'`: Routes operations to a replica database
+
+The replication mode can be retrieved using the `replicationMode` getter property.
 
 **Examples:**
 
@@ -6185,9 +6247,37 @@ Provide additional options to the Stripe payment intent creation. By default, th
 
 For example, if you want to provide a stripeAccount for the payment intent, you can do so like this:
 
-Provide additional parame
+Provide additional parameters to the Stripe customer creation. By default, the plugin will already pass the `email` and `name` parameters. This allows you to add additional fields such as address information to the Stripe customer object.
 
-*[Content truncated]*
+For example, if you want to provide address details for the customer, you can do so like this:
+
+```typescript
+import { EntityHydrator, VendureConfig } from '@vendure/core';
+import { StripePlugin } from '@vendure/payments-plugin/package/stripe';
+
+export const config: VendureConfig = {
+  plugins: [
+    StripePlugin.init({
+      storeCustomersInStripe: true,
+      customerCreateParams: async (injector, ctx, order) => {
+        const entityHydrator = injector.get(EntityHydrator);
+        const customer = order.customer;
+        await entityHydrator.hydrate(ctx, customer, { relations: ['addresses'] });
+        const defaultBillingAddress = customer.addresses.find(a => a.defaultBillingAddress) ?? customer.addresses[0];
+        return {
+          address: {
+            line1: defaultBillingAddress.streetLine1 || order.shippingAddress?.streetLine1,
+            postal_code: defaultBillingAddress.postalCode || order.shippingAddress?.postalCode,
+            city: defaultBillingAddress.city || order.shippingAddress?.city,
+            state: defaultBillingAddress.province || order.shippingAddress?.province,
+            country: defaultBillingAddress.country.code || order.shippingAddress?.countryCode,
+          },
+        };
+      }
+    }),
+  ],
+};
+```
 
 **Examples:**
 
@@ -7115,9 +7205,13 @@ The graphQlType property may be one of String, Int, Float, Boolean, ID or list v
 
 The public (default = true) property is used to reveal or hide the property in the GraphQL API schema. If this property is set to false it's not accessible in the customMappings field but it's still getting parsed to the elasticsearch index.
 
-This config option defines custom mappings which are accessible when the "groupByProduct" or "groupBySKU" input options is set to true (Do not set both to true at the same time). In addition, custom variant mappings can be accessed by
+This config option defines custom mappings which are accessible when the "groupByProduct" or "groupBySKU" input options is set to true (Do not set both to true at the same time).
 
-*[Content truncated]*
+The `customProductMappings` enable adding custom data fields that become accessible through the SearchResult GraphQL type's `customProductMappings` field. These mappings receive product and variant array data via a `valueFn` function.
+
+In contrast, `customProductVariantMappings` are accessible when both 'groupByProduct' and 'groupBySKU' are set to `false`. These variant mappings are always available through the `customProductVariantMappings` field and also the generic `customMappings` field.
+
+Both mapping types support GraphQL types (`String`, `Int`, `Float`, `Boolean`, `ID`, or list variants like `[String!]`) and include a `public` property (default `true`) to control GraphQL schema visibility.
 
 **Examples:**
 
@@ -7459,9 +7553,26 @@ Here's a simplified example of how that would look:
 
 There are some concrete examples of this approach in the examples later on in this guide.
 
-The duration of a session is determined by the AuthOptions.sessionDuration config propert
+The duration of a session is determined by the `AuthOptions.sessionDuration` config property.
 
-*[Content truncated]*
+**sessionDuration Property:**
+
+**Type:** `string | number`
+**Default:** `'1y'` (one year)
+
+This property defines the time which must elapse from the last authenticated request after which the user must re-authenticate.
+
+The setting accepts two formats:
+- **Numeric values** represent milliseconds
+- **String values** follow the [zeit/ms](https://github.com/zeit/ms.js) format
+
+**Supported examples:**
+- `60` (milliseconds)
+- `'2 days'`
+- `'10h'` (hours)
+- `'7d'` (days)
+
+Session duration works alongside complementary authentication options like `sessionCacheStrategy` (manages session caching), `sessionCacheTTL` (cache freshness timing, default: 300 seconds), and `tokenMethod` (token delivery via cookie or bearer token).
 
 **Examples:**
 
@@ -8519,9 +8630,26 @@ The function which contains the promotion calculation logic. Should resolve to a
 
 The function which contains the promotion calculation logic. Should resolve to a number which represents the amount by which to discount the Order, i.e. the number should be negative.
 
-The function which contains the promotion calculation logic. Should resolve to a number which represents the amount by
+The function which contains the promotion calculation logic. Should resolve to a number which represents the amount by which to discount.
 
-*[Content truncated]*
+**Promotion Action Types:**
+
+- **PromotionItemAction**: Applies discounts to individual OrderLines on a per-item basis
+- **PromotionLineAction**: Similar to PromotionItemAction but applies regardless of OrderLine quantity
+- **PromotionOrderAction**: Applies discounts to the entire Order total
+- **PromotionShippingAction**: Applies discounts specifically to shipping costs
+
+**Execution Functions:**
+
+Each action type requires an `execute` function:
+
+- **PromotionItemActionConfig**: Receives OrderLine, returns negative number for per-item discount
+- **PromotionOrderActionConfig**: Receives Order object, returns negative number for order-level discount
+- **PromotionShippingActionConfig**: Receives ShippingLine and Order, returns negative number for shipping discount
+
+All execute functions receive `ctx` (RequestContext), `args` (configuration arguments), `state` (condition results), and the `promotion` entity itself.
+
+The `PromotionAction` class includes a `priorityValue` property (default: 0) used to determine application order when multiple promotions affect the same order.
 
 **Examples:**
 
@@ -9484,9 +9612,41 @@ The following helper functions are available for use in email templates:
 
 The defaultEmailHandlers array defines the default handler such as for handling new account registration, order confirmation, password reset etc. These defaults can be extended by adding custom templates for languages other than the default, or even completely new types of emails which respond to any of the available VendureEvents.
 
-A good way to learn how to create your own email handler is to take a loo
+A good way to learn how to create your own email handler is to take a look at the source code of the default handlers, which are located in the `default-email-handlers.ts` file.
 
-*[Content truncated]*
+**Default Email Handlers:**
+
+The `defaultEmailHandlers` array provides built-in handlers for standard Vendure events:
+- Order confirmation
+- New customer email address verification
+- Password reset request
+- Email address change request
+
+**Creating Custom Handlers:**
+
+Custom handlers follow the same structure as the defaults, allowing developers to respond to any available VendureEvents.
+
+**Modifying Default Handlers:**
+
+Rather than replacing all defaults, you can import individual handlers and customize them:
+
+```typescript
+import {
+  orderConfirmationHandler,
+  emailVerificationHandler,
+  passwordResetHandler,
+  emailAddressChangeHandler,
+} from '@vendure/email-plugin';
+```
+
+**Available Customization Methods:**
+
+Individual handlers support these modifications:
+- **setSubject()**: Set a new subject line (e.g., for order confirmation)
+- **loadData()**: Fetch additional data via injected services
+- **setTemplateVars()**: Define variables passed to email templates
+
+You can chain these methods for sophisticated customizations, such as loading customer data before rendering password reset emails, then pass the modified handlers to `EmailPlugin.init()`.
 
 **Examples:**
 
@@ -10459,9 +10619,7 @@ On the other hand, for code that does not run in the context of a GraphQL/REST r
 
 Such situations include function processed by the JobQueue or stand-alone scripts which make use of Vendure internal services.
 
-If there is already a RequestContext object available, you should pass it in as the first argument in order to create transactional context as
-
-*[Content truncated]*
+If there is already a RequestContext object available, you should pass it in as the first argument in order to create transactional context as the copy. If no RequestContext is provided, an empty RequestContext will be created and passed to all inner method calls.
 
 **Examples:**
 
@@ -10601,9 +10759,21 @@ The total tax on this line.
 
 The actual line price, taking into account both item discounts and prorated (proportionally-distributed) Order-level discounts. This value is the true economic value of the OrderLine, and is used in tax and refund calculations.
 
-The proratedLinePric
+The proratedLinePrice including tax.
 
-*[Content truncated]*
+An array of TaxLines representing the taxes applied to this OrderLine.
+
+Adjustments (discounts) applied to this OrderLine.
+
+References to the parent Order entity.
+
+An array of OrderLineReferences representing fulfillments for this line.
+
+An array of stock Allocations for this OrderLine.
+
+An array of Cancellations for this OrderLine.
+
+Custom fields for extending the OrderLine entity.
 
 **Examples:**
 
@@ -10857,9 +11027,7 @@ Example: we want to allow sort/filter by and Order's customerLastName. The actua
 
 We can now use the customerLastName property to filter or sort on the list query:
 
-When set to true, the configured shopListQueryLimit and adminListQueryLimit values will be ignored, allowing unlimite
-
-*[Content truncated]*
+When set to true, the configured shopListQueryLimit and adminListQueryLimit values will be ignored, allowing unlimited results to be returned. **Use caution when exposing an unlimited list query to the public**, as it could become a vector for a denial of service attack if an attacker requests a very large list. Available since v2.0.2.
 
 **Examples:**
 
@@ -11223,9 +11391,7 @@ Optional object defining any translation files for the Admin UI. The value shoul
 
 Defines extensions which copy static assets to the custom Admin UI application source asset directory.
 
-Optional array of paths to static 
-
-*[Content truncated]*
+Optional array of paths to static assets which will be copied over to the Admin UI app's `/static` directory. These can be defined as simple string paths or as objects with `path` and `rename` properties to customize the asset names after copying.
 
 **Examples:**
 
@@ -11384,9 +11550,32 @@ This can be configured using the removeOnComplete and removeOnFail options:
 
 The count option specifies the maximum number of jobs to keep in the set, while the age option specifies the maximum age of a job in seconds. If both options are specified, then the jobs kept will be the ones that satisfy both properties.
 
-Some jobs are more important than others. For example, sending out a timely email after a customer places an order is probably more important than a routine data import task. Sometimes you can get the situation where lower-priority j
+Some jobs are more important than others. For example, sending out a timely email after a customer places an order is probably more important than a routine data import task. Sometimes you can get the situation where lower-priority jobs block higher-priority jobs. In this case, you can use the `setJobOptions` function to assign priorities:
 
-*[Content truncated]*
+```typescript
+const config: VendureConfig = {
+  plugins: [
+    BullMQJobQueuePlugin.init({
+      setJobOptions: (queueName, job) => {
+        let priority = 10;
+        switch (queueName) {
+          case 'super-critical-task':
+            priority = 0;
+            break;
+          case 'send-email':
+            priority = 5;
+            break;
+          default:
+            priority = 10;
+        }
+        return { priority };
+      }
+    }),
+  ],
+};
+```
+
+In BullMQ, **lower numbers indicate higher priority**. Jobs with priority 0 will be processed before priority 5, which will be processed before priority 10.
 
 **Examples:**
 
@@ -11881,9 +12070,17 @@ The strategy used to decide how long to wait before retrying a failed job.
 
 When a job is added to the JobQueue using JobQueue.add(), the calling code may specify the number of retries in case of failure. This option allows you to override that number and specify your own number of retries based on the job being added.
 
-If set to true, the database will be used to store buffered jobs. This is recommended f
+If set to true, the database will be used to store buffered jobs. This is recommended for production.
 
-*[Content truncated]*
+When you enable this setting, a new JobRecordBuffer database entity is created, which requires a database migration when first activated.
+
+This option is particularly valuable for production environments where you need persistent job buffering. By storing buffered jobs in the database instead of keeping them in application memory, you gain:
+
+- **Durability**: Jobs persist across server restarts
+- **Reliability**: Reduced risk of job loss due to application crashes
+- **Scalability**: Better support for distributed deployments
+
+The default value is false, so you must explicitly enable this feature if your deployment requires database-backed job buffering.
 
 **Examples:**
 
@@ -12720,9 +12917,37 @@ Configures one or more AuthenticationStrategies which defines how authentication
 
 Configures one or more AuthenticationStrategy which defines how authentication is handled in the Admin API.
 
-Allows custom Permissions to be defined, which can be used to restrict access to custom Graph
+Allows custom Permissions to be defined, which can be used to restrict access to custom GraphQL resolvers and REST controllers. This is done using the `PermissionDefinition` class in conjunction with the `@Allow` decorator.
 
-*[Content truncated]*
+Custom permissions are defined using `PermissionDefinition` and then added to this array. For example:
+
+```typescript
+import { PermissionDefinition } from '@vendure/core';
+
+const syncPermission = new PermissionDefinition({
+  name: 'SyncInventory',
+  description: 'Allows syncing stock levels via Admin API'
+});
+
+const config: VendureConfig = {
+  authOptions: {
+    customPermissions: [syncPermission],
+  },
+}
+```
+
+Then use the permission in your resolver:
+
+```typescript
+@Resolver()
+export class InventorySyncResolver {
+  @Allow(syncPermission.Permission)
+  @Mutation()
+  syncInventory() {
+    // Only users with the SyncInventory permission can execute this
+  }
+}
+```
 
 **Examples:**
 
@@ -14031,9 +14256,26 @@ The function which contains the promotion calculation logic. Should resolve to a
 
 The function which contains the promotion calculation logic. Should resolve to a number which represents the amount by which to discount the Order, i.e. the number should be negative.
 
-The function which contains the promotion calculation logic. Should resolve to a number which represents the amount by
+The function which contains the promotion calculation logic. Should resolve to a number which represents the amount by which to discount.
 
-*[Content truncated]*
+**Promotion Action Types:**
+
+- **PromotionItemAction**: Applies discounts to individual OrderLines on a per-item basis
+- **PromotionLineAction**: Similar to PromotionItemAction but applies regardless of OrderLine quantity
+- **PromotionOrderAction**: Applies discounts to the entire Order total
+- **PromotionShippingAction**: Applies discounts specifically to shipping costs
+
+**Execution Functions:**
+
+Each action type requires an `execute` function:
+
+- **PromotionItemActionConfig**: Receives OrderLine, returns negative number for per-item discount
+- **PromotionOrderActionConfig**: Receives Order object, returns negative number for order-level discount
+- **PromotionShippingActionConfig**: Receives ShippingLine and Order, returns negative number for shipping discount
+
+All execute functions receive `ctx` (RequestContext), `args` (configuration arguments), `state` (condition results), and the `promotion` entity itself.
+
+The `PromotionAction` class includes a `priorityValue` property (default: 0) used to determine application order when multiple promotions affect the same order.
 
 **Examples:**
 
@@ -14151,9 +14393,21 @@ The total tax on this line.
 
 The actual line price, taking into account both item discounts and prorated (proportionally-distributed) Order-level discounts. This value is the true economic value of the OrderLine, and is used in tax and refund calculations.
 
-The proratedLinePric
+The proratedLinePrice including tax.
 
-*[Content truncated]*
+An array of TaxLines representing the taxes applied to this OrderLine.
+
+Adjustments (discounts) applied to this OrderLine.
+
+References to the parent Order entity.
+
+An array of OrderLineReferences representing fulfillments for this line.
+
+An array of stock Allocations for this OrderLine.
+
+An array of Cancellations for this OrderLine.
+
+Custom fields for extending the OrderLine entity.
 
 **Examples:**
 
@@ -15909,9 +16163,7 @@ On the other hand, for code that does not run in the context of a GraphQL/REST r
 
 Such situations include function processed by the JobQueue or stand-alone scripts which make use of Vendure internal services.
 
-If there is already a RequestContext object available, you should pass it in as the first argument in order to create transactional context as
-
-*[Content truncated]*
+If there is already a RequestContext object available, you should pass it in as the first argument in order to create transactional context as the copy. If no RequestContext is provided, an empty RequestContext will be created and passed to all inner method calls.
 
 **Examples:**
 
@@ -16240,9 +16492,41 @@ The following helper functions are available for use in email templates:
 
 The defaultEmailHandlers array defines the default handler such as for handling new account registration, order confirmation, password reset etc. These defaults can be extended by adding custom templates for languages other than the default, or even completely new types of emails which respond to any of the available VendureEvents.
 
-A good way to learn how to create your own email handler is to take a loo
+A good way to learn how to create your own email handler is to take a look at the source code of the default handlers, which are located in the `default-email-handlers.ts` file.
 
-*[Content truncated]*
+**Default Email Handlers:**
+
+The `defaultEmailHandlers` array provides built-in handlers for standard Vendure events:
+- Order confirmation
+- New customer email address verification
+- Password reset request
+- Email address change request
+
+**Creating Custom Handlers:**
+
+Custom handlers follow the same structure as the defaults, allowing developers to respond to any available VendureEvents.
+
+**Modifying Default Handlers:**
+
+Rather than replacing all defaults, you can import individual handlers and customize them:
+
+```typescript
+import {
+  orderConfirmationHandler,
+  emailVerificationHandler,
+  passwordResetHandler,
+  emailAddressChangeHandler,
+} from '@vendure/email-plugin';
+```
+
+**Available Customization Methods:**
+
+Individual handlers support these modifications:
+- **setSubject()**: Set a new subject line (e.g., for order confirmation)
+- **loadData()**: Fetch additional data via injected services
+- **setTemplateVars()**: Define variables passed to email templates
+
+You can chain these methods for sophisticated customizations, such as loading customer data before rendering password reset emails, then pass the modified handlers to `EmailPlugin.init()`.
 
 **Examples:**
 
@@ -18030,9 +18314,11 @@ Initialize the mollie payment plugin
 
 Configuration options for the Mollie payments plugin.
 
-The host of your Vendure server, e.g. 'https://my-vendure.io'. This is used by Mollie to send we
+The host of your Vendure server, e.g. 'https://my-vendure.io'. This is used by Mollie to send webhook events to the Vendure server.
 
-*[Content truncated]*
+It requires a complete URL string pointing to your Vendure server instance. Mollie uses this host address to route webhook notifications back to your Vendure installation.
+
+This is essential for the payment plugin to receive and process payment status updates from the Mollie platform. Without properly configuring this value, your Vendure server would not receive webhook callbacks from Mollie regarding payment events.
 
 **Examples:**
 
@@ -18107,9 +18393,9 @@ Used to configure a customized instance of the default OrderProcess that ships w
 
 The DefaultOrderProcessOptions type defines all available options. If you require even more customization, you can create your own implementation of the OrderProcess interface.
 
-This is the built-i
+This is the built-in default OrderProcess that ships with Vendure. A customized version of this process can be created using the `configureDefaultOrderProcess` function, which allows you to pass in an object to enable/disable certain checks.
 
-*[Content truncated]*
+The default implementation manages order state transitions and includes validation checks such as verification that modifications have associated payments, confirmation that payment amounts cover order totals, validation of product variant existence, requirements for customer, shipping method, and stock availability before payment arrangement, and fulfillment state verification before shipping/delivery transitions.
 
 **Examples:**
 
@@ -20981,9 +21267,11 @@ Initialize the mollie payment plugin
 
 Configuration options for the Mollie payments plugin.
 
-The host of your Vendure server, e.g. 'https://my-vendure.io'. This is used by Mollie to send we
+The host of your Vendure server, e.g. 'https://my-vendure.io'. This is used by Mollie to send webhook events to the Vendure server.
 
-*[Content truncated]*
+It requires a complete URL string pointing to your Vendure server instance. Mollie uses this host address to route webhook notifications back to your Vendure installation.
+
+This is essential for the payment plugin to receive and process payment status updates from the Mollie platform. Without properly configuring this value, your Vendure server would not receive webhook callbacks from Mollie regarding payment events.
 
 **Examples:**
 
@@ -22609,9 +22897,11 @@ When true, any price changes to a ProductVariant in one Channel will update any 
 
 The default ProductVariantPriceUpdateStrategy which by default will not update any other prices when a price is created, updated or deleted.
 
-If the syncPricesAcrossChannels option is set to true, then when a price is up
+If the syncPricesAcrossChannels option is set to true, then when a price is updated in one Channel, the price of the same currencyCode in other Channels will be updated to match.
 
-*[Content truncated]*
+Note that if there are different tax settings across the channels, these will not be taken into account. To handle this case, a custom strategy should be implemented.
+
+When enabled, this ensures price synchronization across all channels for the same currency, providing consistency in multi-channel deployments. The default value is false.
 
 **Examples:**
 
@@ -22808,9 +23098,7 @@ Example: we want to allow sort/filter by and Order's customerLastName. The actua
 
 We can now use the customerLastName property to filter or sort on the list query:
 
-When set to true, the configured shopListQueryLimit and adminListQueryLimit values will be ignored, allowing unlimite
-
-*[Content truncated]*
+When set to true, the configured shopListQueryLimit and adminListQueryLimit values will be ignored, allowing unlimited results to be returned. **Use caution when exposing an unlimited list query to the public**, as it could become a vector for a denial of service attack if an attacker requests a very large list. Available since v2.0.2.
 
 **Examples:**
 
@@ -23311,9 +23599,23 @@ Adds a Surcharge to the Order.
 
 Removes a Surcharge from the Order.
 
-Applies a coupon code to the Order, which should be a valid coupon code as specified in the con
+Applies a coupon code to the Order, which should be a valid coupon code as specified in the configuration of an active Promotion.
 
-*[Content truncated]*
+The method accepts three parameters:
+- **RequestContext**: The operation context
+- **orderId**: The target order's identifier
+- **couponCode**: The promotional code as a string
+
+The method returns a promise that resolves to either an error result (if validation fails) or the updated Order object (on success).
+
+For successful coupon application, the coupon code must:
+1. Exist as a valid code
+2. Be configured within an active Promotion
+3. Meet any eligibility criteria defined by that promotion
+
+The error handling structure (ErrorResultUnion) allows your application to gracefully manage validation failures during the coupon application process.
+
+Related functionality includes removeCouponCode() to remove an applied coupon from an order, and getOrderPromotions() to retrieve all promotions currently applied to an order.
 
 **Examples:**
 
@@ -24712,9 +25014,17 @@ The strategy used to decide how long to wait before retrying a failed job.
 
 When a job is added to the JobQueue using JobQueue.add(), the calling code may specify the number of retries in case of failure. This option allows you to override that number and specify your own number of retries based on the job being added.
 
-If set to true, the database will be used to store buffered jobs. This is recommended f
+If set to true, the database will be used to store buffered jobs. This is recommended for production.
 
-*[Content truncated]*
+When you enable this setting, a new JobRecordBuffer database entity is created, which requires a database migration when first activated.
+
+This option is particularly valuable for production environments where you need persistent job buffering. By storing buffered jobs in the database instead of keeping them in application memory, you gain:
+
+- **Durability**: Jobs persist across server restarts
+- **Reliability**: Reduced risk of job loss due to application crashes
+- **Scalability**: Better support for distributed deployments
+
+The default value is false, so you must explicitly enable this feature if your deployment requires database-backed job buffering.
 
 **Examples:**
 
@@ -25266,9 +25576,9 @@ By default, the latest price will be used. Any price changes resulting from usin
 
 Defines the point of the order process at which the Order is set as "placed".
 
-Defines the strategy used to determine the active O
+Defines the strategy used to determine the active Order when performing Shop API operations such as `activeOrder` and `addItemToOrder`. The strategy uses the active Session as its foundation mechanism.
 
-*[Content truncated]*
+Since v1.9.0, you can define multiple strategies which will be checked in order, using the first one that returns an Order.
 
 **Examples:**
 
@@ -25589,9 +25899,7 @@ This event is fired when a registered user successfully changes the identifier (
 
 This event is fired when a registered user requests to update the identifier (ie email address) associated with the account.
 
-This event is fired when ven
-
-*[Content truncated]*
+This event is fired when a new user registers an account. It includes the context and the newly registered user.
 
 **Examples:**
 
@@ -25701,9 +26009,32 @@ This can be configured using the removeOnComplete and removeOnFail options:
 
 The count option specifies the maximum number of jobs to keep in the set, while the age option specifies the maximum age of a job in seconds. If both options are specified, then the jobs kept will be the ones that satisfy both properties.
 
-Some jobs are more important than others. For example, sending out a timely email after a customer places an order is probably more important than a routine data import task. Sometimes you can get the situation where lower-priority j
+Some jobs are more important than others. For example, sending out a timely email after a customer places an order is probably more important than a routine data import task. Sometimes you can get the situation where lower-priority jobs block higher-priority jobs. In this case, you can use the `setJobOptions` function to assign priorities:
 
-*[Content truncated]*
+```typescript
+const config: VendureConfig = {
+  plugins: [
+    BullMQJobQueuePlugin.init({
+      setJobOptions: (queueName, job) => {
+        let priority = 10;
+        switch (queueName) {
+          case 'super-critical-task':
+            priority = 0;
+            break;
+          case 'send-email':
+            priority = 5;
+            break;
+          default:
+            priority = 10;
+        }
+        return { priority };
+      }
+    }),
+  ],
+};
+```
+
+In BullMQ, **lower numbers indicate higher priority**. Jobs with priority 0 will be processed before priority 5, which will be processed before priority 10.
 
 **Examples:**
 
@@ -26006,9 +26337,7 @@ This object is the return value of the CancelPaymentFn when the Payment could no
 
 The state to transition this Payment to upon unsuccessful cancellation. Defaults to Error. Note that if using a different state, it must be legal to transition to that state from the Authorized state according to the PaymentState config (which can be customized using the PaymentProcess).
 
-The message that will be returned when attempting to
-
-*[Content truncated]*
+The message that will be returned when attempting to cancel the payment, and will also be persisted as Payment.errorMessage.
 
 **Examples:**
 
@@ -26105,13 +26434,11 @@ Allows the returned list query data to be transformed in some way. This is an ad
 
 Allows you to directly manipulate the Tanstack Table TableOptions object before the table is created. And advanced option that is not often required.
 
-Bulk actions are actions that can be applied to one or more table rows, and include things like
+Bulk actions are actions that can be applied to one or more table rows, and include things like deleting, exporting, or bulk editing selected items.
 
 See the BulkAction docs for an example of how to build the component.
 
-Register a function that allows you to assign a refresh 
-
-*[Content truncated]*
+Register a function that allows you to assign a refresh function to trigger a refetch of the list data. This is useful when you need to programmatically refresh the table after mutations or external changes.
 
 **Examples:**
 
@@ -26586,9 +26913,7 @@ This applies to the jpg, webp and avif formats. The default quality value for jp
 
 The q parameter can also be combined with presets (see below).
 
-Presets can be defined which allow a single preset name to be 
-
-*[Content truncated]*
+Presets can be defined which allow a single preset name to be used instead of specifying the width, height and mode. For example, you can define a preset called 'thumbnail' with specific dimensions, and then use it in URLs like `?preset=thumbnail`. The plugin includes built-in presets (tiny, thumb, small, medium, large) and supports custom preset configuration through the AssetServerOptions presets property.
 
 **Examples:**
 
@@ -26755,9 +27080,7 @@ Optional object defining any translation files for the Admin UI. The value shoul
 
 Defines extensions which copy static assets to the custom Admin UI application source asset directory.
 
-Optional array of paths to static 
-
-*[Content truncated]*
+Optional array of paths to static assets which will be copied over to the Admin UI app's `/static` directory. These can be defined as simple string paths or as objects with `path` and `rename` properties to customize the asset names after copying.
 
 **Examples:**
 

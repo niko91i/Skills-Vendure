@@ -5,145 +5,516 @@ description: Vendure e-commerce framework for Node.js. Use for headless commerce
 
 # Vendure Skill
 
-Comprehensive assistance with vendure development, generated from official documentation.
+Comprehensive assistance with Vendure development, generated from official documentation.
 
 ## When to Use This Skill
 
 This skill should be triggered when:
-- Working with vendure
-- Asking about vendure features or APIs
-- Implementing vendure solutions
-- Debugging vendure code
-- Learning vendure best practices
+- **Building headless e-commerce** applications with Node.js/TypeScript
+- **Working with GraphQL APIs** for products, orders, or customer management
+- **Implementing payment integrations** (Stripe, custom payment handlers)
+- **Creating custom plugins** or extending Vendure functionality
+- **Setting up order workflows** and state machines
+- **Developing Admin UI extensions** with React or Angular
+- **Configuring multi-currency** or multi-channel stores
+- **Debugging Vendure code** or troubleshooting e-commerce flows
+- **Learning Vendure best practices** for TypeScript e-commerce development
 
 ## Quick Reference
 
 ### Common Patterns
 
-**Pattern 1:** TypeScript APIOrdersOrderInterceptorCopy as MDOn this pageOrderInterceptorOrderInterceptor​ @vendure/coreorder-interceptor.tsv3.1.0 An OrderInterceptor is a class which can be used to intercept and modify the behavior of order-related operations. It does this by providing methods which are called whenever the contents of an order are about to get changed. These methods are able to prevent the operation from proceeding by returning a string error message. Examples of use-cases for an OrderInterceptor include: Preventing certain products from being added to the order based on some criteria, e.g. if the product is already in another active order. Enforcing a minimum or maximum quantity of a given product in the order Using a CAPTCHA to prevent automated order creation infoThis is configured via the orderOptions.orderInterceptors property of your VendureConfig. OrderInterceptors are executed when the following mutations are called: addItemToOrder adjustOrderLine removeItemFromOrder Additionally, if you are working directly with the OrderService, the following methods will trigger any registered OrderInterceptors: addItemToOrder addItemsToOrder adjustOrderLine adjustOrderLines removeItemFromOrder removeItemsFromOrder When an OrderInterceptor is registered, it will be called in the order in which it was registered. If an interceptor method resolves to a string, the operation will be prevented and the string will be used as the error message. When multiple interceptors are registered, the first interceptor to resolve to a string will prevent the operation from proceeding. Errors returned by OrderInterceptors are surfaced to the GraphQL API as an OrderInterceptorError and can be queried like this: mutation AddItemToOrder($productVariantId: ID!, $quantity: Int!) { addItemToOrder(productVariantId: $productVariantId, quantity: $quantity) { ... on Order { id code # ... other Order fields } ... on ErrorResult { errorCode message } ... on OrderInterceptorError { interceptorError } }} In the above example, the error message returned by the OrderInterceptor would be available in the interceptorError field. Example: Min/max order quantity​ Let's say we want to allow ProductVariants to specify the minimum or maximum amount which may be added to an order. We can define custom fields to store this information and then use this custom field value to prevent an order line from being added to the order if the quantity is below the minimum. Example import { EntityHydrator, Injector, LanguageCode, Order, OrderInterceptor, ProductVariant, RequestContext, TranslatorService, VendurePlugin, WillAddItemToOrderInput, WillAdjustOrderLineInput,} from '@vendure/core';declare module '@vendure/core/dist/entity/custom-entity-fields' { interface CustomProductVariantFields { minOrderQuantity?: number; maxOrderQuantity?: number; }}// This OrderInterceptor enforces minimum and maximum order quantities on ProductVariants.export class MinMaxOrderInterceptor implements OrderInterceptor { private entityHydrator: EntityHydrator; private translatorService: TranslatorService; init(injector: Injector) { this.entityHydrator = injector.get(EntityHydrator); this.translatorService = injector.get(TranslatorService); } willAddItemToOrder( ctx: RequestContext, order: Order, input: WillAddItemToOrderInput, ): Promise<void | string> | void | string { const { productVariant, quantity } = input; const min = productVariant.customFields?.minOrderQuantity; const max = productVariant.customFields?.maxOrderQuantity; if (min && quantity < min) { return this.minErrorMessage(ctx, productVariant, min); } if (max && quantity > max) { return this.maxErrorMessage(ctx, productVariant, max); } } willAdjustOrderLine( ctx: RequestContext, order: Order, input: WillAdjustOrderLineInput, ): Promise<void | string> | void | string { const { orderLine, quantity } = input; const min = orderLine.productVariant.customFields?.minOrderQuantity; const max = orderLine.productVariant.customFields?.maxOrderQuantity; if (min && quantity < min) { return this.minErrorMessage(ctx, orderLine.productVariant, min); } if (max && quantity > max) { return this.maxErrorMessage(ctx, orderLine.productVariant, max); } } private async minErrorMessage(ctx: RequestContext, variant: ProductVariant, min: number) { const variantName = await this.getTranslatedVariantName(ctx, variant); return `Minimum order quantity for "${variantName}" is ${min}`; } private async maxErrorMessage(ctx: RequestContext, variant: ProductVariant, max: number) { const variantName = await this.getTranslatedVariantName(ctx, variant); return `Maximum order quantity for "${variantName}" is ${max}`; } private async getTranslatedVariantName(ctx: RequestContext, variant: ProductVariant) { await this.entityHydrator.hydrate(ctx, variant, { relations: ['translations'] }); const translated = this.translatorService.translate(variant, ctx); return translated.name; }}// This plugin enforces minimum and maximum order quantities on ProductVariants.// It adds two new custom fields to ProductVariant:// - minOrderQuantity// - maxOrderQuantity//// It also adds an OrderInterceptor which enforces these limits.@VendurePlugin({ configuration: config => { // Here we add the custom fields to the ProductVariant entity config.customFields.ProductVariant.push({ type: 'int', min: 0, name: 'minOrderQuantity', label: [{ languageCode: LanguageCode.en, value: 'Minimum order quantity' }], nullable: true, }); config.customFields.ProductVariant.push({ type: 'int', min: 0, name: 'maxOrderQuantity', label: [{ languageCode: LanguageCode.en, value: 'Maximum order quantity' }], nullable: true, }); // Here we add the MinMaxOrderInterceptor to the orderInterceptors array config.orderOptions.orderInterceptors.push(new MinMaxOrderInterceptor()); return config; },})export class OrderQuantityLimitsPlugin {} Signatureinterface OrderInterceptor extends InjectableStrategy { willAddItemToOrder?( ctx: RequestContext, order: Order, input: WillAddItemToOrderInput, ): Promise<void | string> | void | string; willAdjustOrderLine?( ctx: RequestContext, order: Order, input: WillAdjustOrderLineInput, ): Promise<void | string> | void | string; willRemoveItemFromOrder?( ctx: RequestContext, order: Order, orderLine: OrderLine, ): Promise<void | string> | void | string;} Extends: InjectableStrategy willAddItemToOrder​method(ctx: RequestContext, order: Order, input: WillAddItemToOrderInput) => Promise<void | string> | void | stringCalled when a new item is about to be added to the order, as in the addItemToOrder mutation or the addItemToOrder() / addItemsToOrder() method of the OrderService.willAdjustOrderLine​method(ctx: RequestContext, order: Order, input: WillAdjustOrderLineInput) => Promise<void | string> | void | stringCalled when an existing order line is about to be adjusted, as in the adjustOrderLine mutation or the adjustOrderLine() / adjustOrderLines() method of the OrderService.willRemoveItemFromOrder​method(ctx: RequestContext, order: Order, orderLine: OrderLine) => Promise<void | string> | void | stringCalled when an item is about to be removed from the order, as in the removeItemFromOrder mutation or the removeItemFromOrder() / removeItemsFromOrder() method of the OrderService.Edit this pageLast updated on Oct 22, 2025PreviousOrderCodeStrategyNextOrderItemPriceCalculationStrategyOrderInterceptorExample: Min/max order quantitywillAddItemToOrderwillAdjustOrderLinewillRemoveItemFromOrder
+**Pattern 1: Create a New Vendure Project**
 
-```
-orderOptions.orderInterceptors
-```
+The fastest way to get started with Vendure:
 
-**Pattern 2:** Core PluginsEmailPluginEmailEventHandlerCopy as MDOn this pageEmailEventHandlerEmailEventHandler​ @vendure/email-pluginevent-handler.ts The EmailEventHandler defines how the EmailPlugin will respond to a given event. A handler is created by creating a new EmailEventListener and calling the .on() method to specify which event to respond to. Example const confirmationHandler = new EmailEventListener('order-confirmation') .on(OrderStateTransitionEvent) .filter(event => event.toState === 'PaymentSettled') .setRecipient(event => event.order.customer.emailAddress) .setFrom('{{ fromAddress }}') .setSubject(`Order confirmation for #{{ order.code }}`) .setTemplateVars(event => ({ order: event.order })); This example creates a handler which listens for the OrderStateTransitionEvent and if the Order has transitioned to the 'PaymentSettled' state, it will generate and send an email. The string argument passed into the EmailEventListener constructor is used to identify the handler, and also to locate the directory of the email template files. So in the example above, there should be a directory <app root>/static/email/templates/order-confirmation which contains a Handlebars template named body.hbs. Handling other languages​ By default, the handler will respond to all events on all channels and use the same subject ("Order confirmation for #12345" above) and body template. Since v2.0 the .addTemplate() method has been deprecated. To serve different templates — for example, based on the current languageCode — implement a custom TemplateLoader and pass it to EmailPlugin.init({ templateLoader: new MyTemplateLoader() }). The language is typically determined by the languageCode property of the event's ctx (RequestContext) object, so the loadTemplate() method can use that to locate the correct template file. Example import { EmailPlugin, TemplateLoader } from '@vendure/email-plugin';import { readFileSync } from 'fs';import path from 'path';class CustomLanguageAwareTemplateLoader implements TemplateLoader { constructor(private templateDir: string) {} async loadTemplate(_injector, ctx, { type, templateName }) { // e.g. returns the content of "body.de.hbs" or "body.en.hbs" depending on ctx.languageCode const filePath = path.join(this.templateDir, type, `${templateName}.${ctx.languageCode}.hbs`); return readFileSync(filePath, 'utf-8'); }}EmailPlugin.init({ templateLoader: new CustomLanguageAwareTemplateLoader(path.join(__dirname, '../static/email/templates')), handlers: defaultEmailHandlers,}); Defining a custom handler​ Let's say you have a plugin which defines a new event type, QuoteRequestedEvent. In your plugin you have defined a mutation which is executed when the customer requests a quote in your storefront, and in your resolver, you use the EventBus to publish a new QuoteRequestedEvent. You now want to email the customer with their quote. Here are the steps you would take to set this up: 1. Create a new handler​ import { EmailEventListener } from `@vendure/email-plugin`;import { QuoteRequestedEvent } from `./events`;const quoteRequestedHandler = new EmailEventListener('quote-requested') .on(QuoteRequestedEvent) .setRecipient(event => event.customer.emailAddress) .setSubject(`Here's the quote you requested`) .setFrom('{{ fromAddress }}') .setTemplateVars(event => ({ details: event.details })); 2. Create the email template​ Next you need to make sure there is a template defined at <app root>/static/email/templates/quote-requested/body.hbs. The path segment quote-requested must match the string passed to the EmailEventListener constructor. The template would look something like this: {{> header title="Here's the quote you requested" }}<mj-section background-color="#fafafa"> <mj-column> <mj-text color="#525252"> Thank you for your interest in our products! Here's the details of the quote you recently requested: </mj-text> <!-- your custom email layout goes here --> </mj-column></mj-section>{{> footer }} You can find pre-made templates on the MJML website. 3. Register the handler​ Finally, you need to register the handler with the EmailPlugin: import { defaultEmailHandlers, EmailPlugin } from '@vendure/email-plugin';import { quoteRequestedHandler } from './plugins/quote-plugin';const config: VendureConfig = { // Add an instance of the plugin to the plugins array plugins: [ EmailPlugin.init({ handler: [...defaultEmailHandlers, quoteRequestedHandler], // ... etc }), ],}; Signatureclass EmailEventHandler<T extends string = string, Event extends EventWithContext = EventWithContext> { constructor(listener: EmailEventListener<T>, event: Type<Event>) filter(filterFn: (event: Event) => boolean) => EmailEventHandler<T, Event>; setRecipient(setRecipientFn: (event: Event) => string) => EmailEventHandler<T, Event>; setLanguageCode(setLanguageCodeFn: (event: Event) => LanguageCode | undefined) => EmailEventHandler<T, Event>; setTemplateVars(templateVarsFn: SetTemplateVarsFn<Event>) => EmailEventHandler<T, Event>; setSubject(defaultSubject: string | SetSubjectFn<Event>) => EmailEventHandler<T, Event>; setFrom(from: string) => EmailEventHandler<T, Event>; setOptionalAddressFields(optionalAddressFieldsFn: SetOptionalAddressFieldsFn<Event>) => ; setMetadata(optionalSetMetadataFn: SetMetadataFn<Event>) => ; setAttachments(setAttachmentsFn: SetAttachmentsFn<Event>) => ; addTemplate(config: EmailTemplateConfig) => EmailEventHandler<T, Event>; loadData(loadDataFn: LoadDataFn<Event, R>) => EmailEventHandlerWithAsyncData<R, T, Event, EventWithAsyncData<Event, R>>; setMockEvent(event: Omit<Event, 'ctx' | 'data'>) => EmailEventHandler<T, Event>;} constructor​method(listener: EmailEventListener<T>, event: Type<Event>) => EmailEventHandlerfilter​method(filterFn: (event: Event) => boolean) => EmailEventHandler<T, Event>Defines a predicate function which is used to determine whether the event will trigger an email. Multiple filter functions may be defined.setRecipient​method(setRecipientFn: (event: Event) => string) => EmailEventHandler<T, Event>A function which defines how the recipient email address should be extracted from the incoming event.The recipient can be a plain email address: 'foobar@example.com' Or with a formatted name (includes unicode support): 'Ноде Майлер <foobar@example.com>' Or a comma-separated list of addresses: 'foobar@example.com, "Ноде Майлер" <bar@example.com>'setLanguageCode​methodv1.8.0(setLanguageCodeFn: (event: Event) => LanguageCode | undefined) => EmailEventHandler<T, Event>A function which allows to override the language of the email. If not defined, the language from the context will be used.setTemplateVars​method(templateVarsFn: SetTemplateVarsFn<Event>) => EmailEventHandler<T, Event>A function which returns an object hash of variables which will be made available to the Handlebars template and subject line for interpolation.setSubject​method(defaultSubject: string | SetSubjectFn<Event>) => EmailEventHandler<T, Event>Sets the default subject of the email. The subject string may use Handlebars variables defined by the setTemplateVars() method.setFrom​method(from: string) => EmailEventHandler<T, Event>Sets the default from field of the email. The from string may use Handlebars variables defined by the setTemplateVars() method.setOptionalAddressFields​methodv1.1.0(optionalAddressFieldsFn: SetOptionalAddressFieldsFn<Event>) => A function which allows OptionalAddressFields to be specified such as "cc" and "bcc".setMetadata​methodv3.1.0(optionalSetMetadataFn: SetMetadataFn<Event>) => A function which allows EmailMetadata to be specified for the email. This can be used to store arbitrary data about the email which can be used for tracking or other purposes.It will be exposed in the EmailSendEvent as event.metadata. Here's an example of usage: An OrderStateTransitionEvent occurs, and the EmailEventListener starts processing it. The EmailEventHandler attaches metadata to the email: new EmailEventListener(EventType.ORDER_CONFIRMATION) .on(OrderStateTransitionEvent) .setMetadata(event => ({ type: EventType.ORDER_CONFIRMATION, orderId: event.order.id, })); Then, the EmailPlugin tries to send the email and publishes EmailSendEvent, passing ctx, emailDetails, error or success, and this metadata. In another part of the server, we have an eventBus that subscribes to EmailSendEvent. We can use metadata.type and metadata.orderId to identify the related order. For example, we can indicate on the order that the email was successfully sent, or in case of an error, send a notification confirming the order in another available way. setAttachments​method(setAttachmentsFn: SetAttachmentsFn<Event>) => Defines one or more files to be attached to the email. An attachment can be specified as either a path (to a file or URL) or as content which can be a string, Buffer or Stream.Note: When using the content to pass a Buffer or Stream, the raw data will get serialized into the job queue. For this reason the total size of all attachments passed as content should kept to less than ~50k. If the attachments are greater than that limit, a warning will be logged and errors may result if using the DefaultJobQueuePlugin with certain DBs such as MySQL/MariaDB.Exampleconst testAttachmentHandler = new EmailEventListener('activate-voucher') .on(ActivateVoucherEvent) // ... omitted some steps for brevity .setAttachments(async (event) => { const { imageUrl, voucherCode } = await getVoucherDataForUser(event.user.id); return [ { filename: `voucher-${voucherCode}.jpg`, path: imageUrl, }, ]; });addTemplate​method(config: EmailTemplateConfig) => EmailEventHandler<T, Event>Add configuration for another template other than the default "body.hbs". Use this method to define specific templates for channels or languageCodes other than the default.loadData​method(loadDataFn: LoadDataFn<Event, R>) => EmailEventHandlerWithAsyncData<R, T, Event, EventWithAsyncData<Event, R>>Allows data to be loaded asynchronously which can then be used as template variables. The loadDataFn has access to the event, the TypeORM Connection object, and an inject() function which can be used to inject any of the providers exported by the PluginCommonModule. The return value of the loadDataFn will be added to the event as the data property.Examplenew EmailEventListener('order-confirmation') .on(OrderStateTransitionEvent) .filter(event => event.toState === 'PaymentSettled' && !!event.order.customer) .loadData(({ event, injector }) => { const orderService = injector.get(OrderService); return orderService.getOrderPayments(event.order.id); }) .setTemplateVars(event => ({ order: event.order, payments: event.data, })) // ...setMockEvent​method(event: Omit<Event, 'ctx' | 'data'>) => EmailEventHandler<T, Event>Optionally define a mock Event which is used by the dev mode mailbox app for generating mock emails from this handler, which is useful when developing the email templates.Edit this pageLast updated on Oct 22, 2025PreviousEmailEventHandlerWithAsyncDataNextEmailEventListenerEmailEventHandlerHandling other languagesDefining a custom handler1. Create a new handler2. Create the email template3. Register the handlerconstructorfiltersetRecipientsetLanguageCodesetTemplateVarssetSubjectsetFromsetOptionalAddressFieldssetMetadatasetAttachmentsaddTemplateloadDatasetMockEvent
-
-```
-.on()
-```
-
-**Pattern 3:** Developer GuideCustom Strategies in PluginsCopy as MDOn this pageCustom Strategies in PluginsWhen building Vendure plugins, you often need to provide extensible, pluggable implementations for specific features. The strategy pattern is the perfect tool for this, allowing plugin users to customize behavior by providing their own implementations. This guide shows you how to implement custom strategies in your plugins, following Vendure's established patterns and best practices. Overview​ A strategy in Vendure is a way to provide a pluggable implementation of a particular feature. Custom strategies in plugins allow users to: Override default behavior with their own implementations Inject dependencies and services through the init() lifecycle method Clean up resources using the destroy() lifecycle method Configure the strategy through the plugin's init options Creating a Strategy Interface​ First, define the interface that your strategy must implement. All strategy interfaces should extend InjectableStrategy to support dependency injection and lifecycle methods. src/strategies/my-custom-strategy.tsimport { InjectableStrategy, RequestContext } from '@vendure/core';export interface MyCustomStrategy extends InjectableStrategy { /** * Process some data and return a result */ processData(ctx: RequestContext, data: any): Promise<string>; /** * Validate the input data */ validateInput(data: any): boolean;} Implementing a Default Strategy​ Create a default implementation that users can extend or replace: src/strategies/default-my-custom-strategy.tsimport { Injector, RequestContext, Logger } from '@vendure/core';import { MyCustomStrategy } from './my-custom-strategy';import { SomeOtherService } from '../services/some-other.service';import { loggerCtx } from '../constants';export class DefaultMyCustomStrategy implements MyCustomStrategy { private someOtherService: SomeOtherService; async init(injector: Injector): Promise<void> { // Inject dependencies during the init phase this.someOtherService = injector.get(SomeOtherService); // Perform any setup logic Logger.info('DefaultMyCustomStrategy initialized', loggerCtx); } async destroy(): Promise<void> { // Clean up resources if needed Logger.info('DefaultMyCustomStrategy destroyed', loggerCtx); } async processData(ctx: RequestContext, data: any): Promise<string> { // Validate input first if (!this.validateInput(data)) { throw new Error('Invalid input data'); } // Use injected service to process data const result = await this.someOtherService.doSomething(ctx, data); // ... do something with the result return result; } validateInput(data: any): boolean { return data != null && typeof data === 'object'; }} Adding Strategy to Plugin Options​ Define your plugin's initialization options to include the strategy: src/types.tsimport { MyCustomStrategy } from './strategies/my-custom-strategy';export interface MyPluginInitOptions { /** * Custom strategy for processing data * @default DefaultMyCustomStrategy */ processingStrategy?: MyCustomStrategy; /** * Other plugin options */ someOtherOption?: string;} Configuring the Plugin​ In your plugin definition, provide the default strategy and allow users to override it: src/my-plugin.tsimport { PluginCommonModule, VendurePlugin, Injector } from '@vendure/core';import { OnApplicationBootstrap, OnApplicationShutdown } from '@nestjs/common';import { ModuleRef } from '@nestjs/core';import { MY_PLUGIN_OPTIONS } from './constants';import { MyPluginInitOptions } from './types';import { DefaultMyCustomStrategy } from './strategies/default-my-custom-strategy';import { MyPluginService } from './services/my-plugin.service';import { SomeOtherService } from './services/some-other.service';@VendurePlugin({ imports: [PluginCommonModule], providers: [ MyPluginService, SomeOtherService, { provide: MY_PLUGIN_OPTIONS, useFactory: () => MyPlugin.options, }, ], configuration: config => { // You can also configure core Vendure strategies here if needed return config; }, compatibility: '^3.0.0',})export class MyPlugin implements OnApplicationBootstrap, OnApplicationShutdown { static options: MyPluginInitOptions; constructor(private moduleRef: ModuleRef) {} static init(options: MyPluginInitOptions) { this.options = { // Provide default strategy if none specified processingStrategy: new DefaultMyCustomStrategy(), ...options, }; return MyPlugin; } async onApplicationBootstrap() { await this.initStrategy(); } async onApplicationShutdown() { await this.destroyStrategy(); } private async initStrategy() { const strategy = MyPlugin.options.processingStrategy; if (strategy && typeof strategy.init === 'function') { const injector = new Injector(this.moduleRef); await strategy.init(injector); } } private async destroyStrategy() { const strategy = MyPlugin.options.processingStrategy; if (strategy && typeof strategy.destroy === 'function') { await strategy.destroy(); } }} Using the Strategy in Services​ Access the strategy through dependency injection in your services: src/services/my-plugin.service.tsimport { Injectable, Inject } from '@nestjs/common';import { RequestContext } from '@vendure/core';import { MY_PLUGIN_OPTIONS } from '../constants';import { MyPluginInitOptions } from '../types';@Injectable()export class MyPluginService { constructor(@Inject(MY_PLUGIN_OPTIONS) private options: MyPluginInitOptions) {} async processUserData(ctx: RequestContext, userData: any): Promise<string> { // Delegate to the configured strategy return this.options.processingStrategy.processData(ctx, userData); } validateUserInput(data: any): boolean { return this.options.processingStrategy.validateInput(data); }} User Implementation Example​ Plugin users can now provide their own strategy implementations: src/my-custom-implementation.tsimport { Injector, RequestContext, Logger } from '@vendure/core';import { MyCustomStrategy } from '@my-org/my-plugin';import { ExternalApiService } from './external-api.service';import { loggerCtx } from '../constants';export class CustomProcessingStrategy implements MyCustomStrategy { private externalApi: ExternalApiService; async init(injector: Injector): Promise<void> { this.externalApi = injector.get(ExternalApiService); // Initialize external API connection await this.externalApi.connect(); Logger.info('Custom processing strategy initialized', loggerCtx); } async destroy(): Promise<void> { // Clean up external connections if (this.externalApi) { await this.externalApi.disconnect(); } Logger.info('Custom processing strategy destroyed', loggerCtx); } async processData(ctx: RequestContext, data: any): Promise<string> { if (!this.validateInput(data)) { throw new Error('Invalid data format'); } // Use external API for processing const result = await this.externalApi.processData(data); return `Processed: ${result}`; } validateInput(data: any): boolean { // Custom validation logic return data && data.type === 'custom' && data.value; }} Plugin Configuration by Users​ Users configure the plugin with their custom strategy: vendure-config.tsimport { VendureConfig } from '@vendure/core';import { MyPlugin } from '@my-org/my-plugin';import { CustomProcessingStrategy } from './my-custom-implementation';export const config: VendureConfig = { plugins: [ MyPlugin.init({ processingStrategy: new CustomProcessingStrategy(), someOtherOption: 'custom-value', }), ], // ... other config}; Strategy with Options​ You can also create strategies that accept configuration options: src/strategies/configurable-strategy.tsimport { Injector, RequestContext } from '@vendure/core';import { MyCustomStrategy } from './my-custom-strategy';export interface ConfigurableStrategyOptions { timeout: number; retries: number; apiKey: string;}export class ConfigurableStrategy implements MyCustomStrategy { constructor(private options: ConfigurableStrategyOptions) {} async init(injector: Injector): Promise<void> { // Use options during initialization console.log(`Strategy configured with timeout: ${this.options.timeout}ms`); } async destroy(): Promise<void> { // Cleanup logic } async processData(ctx: RequestContext, data: any): Promise<string> { // Use configuration options const timeout = this.options.timeout; const retries = this.options.retries; // Implementation using these options... return 'processed with options'; } validateInput(data: any): boolean { return true; }} Usage: vendure-config.tsimport { ConfigurableStrategy } from './strategies/configurable-strategy';// In plugin configurationMyPlugin.init({ processingStrategy: new ConfigurableStrategy({ timeout: 5000, retries: 3, apiKey: process.env.API_KEY, }),}); Multiple Strategies in One Plugin​ For complex plugins, you might need multiple strategies: src/types.tsexport interface ComplexPluginOptions { dataProcessingStrategy?: DataProcessingStrategy; validationStrategy?: ValidationStrategy; cacheStrategy?: CacheStrategy;} src/complex-plugin.ts@VendurePlugin({ // ... plugin config})export class ComplexPlugin implements OnApplicationBootstrap, OnApplicationShutdown { static options: ComplexPluginOptions; static init(options: ComplexPluginOptions) { this.options = { dataProcessingStrategy: new DefaultDataProcessingStrategy(), validationStrategy: new DefaultValidationStrategy(), cacheStrategy: new DefaultCacheStrategy(), ...options, }; return ComplexPlugin; } async onApplicationBootstrap() { await this.initAllStrategies(); } async onApplicationShutdown() { await this.destroyAllStrategies(); } private async initAllStrategies() { const injector = new Injector(this.moduleRef); const strategies = [ ComplexPlugin.options.dataProcessingStrategy, ComplexPlugin.options.validationStrategy, ComplexPlugin.options.cacheStrategy, ]; for (const strategy of strategies) { if (strategy && typeof strategy.init === 'function') { await strategy.init(injector); } } } private async destroyAllStrategies() { const strategies = [ ComplexPlugin.options.dataProcessingStrategy, ComplexPlugin.options.validationStrategy, ComplexPlugin.options.cacheStrategy, ]; for (const strategy of strategies) { if (strategy && typeof strategy.destroy === 'function') { await strategy.destroy(); } } }} Best Practices​ 1. Always Extend InjectableStrategy​ export interface MyStrategy extends InjectableStrategy { // ... strategy methods} 2. Provide Sensible Defaults​ Always provide a default implementation so users can use your plugin out-of-the-box: static init(options: MyPluginOptions) { this.options = { myStrategy: new DefaultMyStrategy(), ...options, }; return MyPlugin;} 3. Handle Lifecycle Properly​ Always implement proper init/destroy handling in your plugin: async onApplicationBootstrap() { await this.initStrategies();}async onApplicationShutdown() { await this.destroyStrategies();} 4. Use TypeScript for Better DX​ Provide strong typing for better developer experience: export interface MyStrategy extends InjectableStrategy { processData<T>(ctx: RequestContext, data: T): Promise<ProcessedResult<T>>;} 5. Document Your Strategy Interface​ Provide comprehensive JSDoc comments: export interface MyStrategy extends InjectableStrategy { /** * @description * Processes the input data and returns a transformed result. * This method is called for each data processing request. * * @param ctx - The current request context * @param data - The input data to process * @returns Promise resolving to the processed result */ processData(ctx: RequestContext, data: any): Promise<string>;} Summary​ Custom strategies in plugins provide a powerful way to make your plugins extensible and configurable. By following the patterns outlined in this guide, you can: Define clear strategy interfaces that extend InjectableStrategy Provide default implementations that work out-of-the-box Allow users to inject dependencies through the init() method Properly manage strategy lifecycle with init() and destroy() methods Enable users to provide their own implementations Support configuration options for strategies This approach ensures your plugins are flexible, maintainable, and follow Vendure's established conventions.Edit this pageLast updated on Oct 22, 2025PreviousExtend the GraphQL APINextImplementing ChannelAwareOverviewCreating a Strategy InterfaceImplementing a Default StrategyAdding Strategy to Plugin OptionsConfiguring the PluginUsing the Strategy in ServicesUser Implementation ExamplePlugin Configuration by UsersStrategy with OptionsMultiple Strategies in One PluginBest Practices1. Always Extend InjectableStrategy2. Provide Sensible Defaults3. Handle Lifecycle Properly4. Use TypeScript for Better DX5. Document Your Strategy InterfaceSummary
-
-```
-init()
-```
-
-**Pattern 4:** React Admin DashboardAlertsCopy as MDOn this pageAlertsAlerts allow you to display important information to the administrators who use the Dashboard. They can be used to notify users about pending tasks, system status, or any conditions that require attention. infoThis API is further documented in the DashboardAlertDefinition API reference Creating a Custom Alert​ To create a custom alert, you need to define a DashboardAlertDefinition object and register it with the Dashboard. Example: Pending Search Index Updates Alert​ Let's take the built-in "pending search index updates" as an example, since it demonstrates many features you'll also use in your own custom alerts. pending-updates-alert.tsximport { graphql } from '@/gql';import { api, DashboardAlertDefinition } from '@vendure/dashboard';import { toast } from 'sonner';const pendingSearchIndexUpdatesDocument = graphql(` query GetPendingSearchIndexUpdates { pendingSearchIndexUpdates }`);export const runPendingSearchIndexUpdatesDocument = graphql(` mutation RunPendingSearchIndexUpdates { runPendingSearchIndexUpdates { success } }`);export const pendingSearchIndexUpdatesAlert: DashboardAlertDefinition<number> = { id: 'pending-search-index-updates', // The `check` function is called periodically based on the `recheckInterval`. // It will typically do something like checking an API for data. The result // of this function is then used to decide whether an alert needs to be // displayed. check: async () => { const data = await api.query(pendingSearchIndexUpdatesDocument); return data.pendingSearchIndexUpdates; }, recheckInterval: 10_000, // Determines whether to display the alert. In our case, we want to display // and alert if there are one or more pendingSearchIndexUpdates shouldShow: data => data > 0, title: data => `${data} pending search index updates`, description: 'Runs all pending search index updates', // The severity (info, warning, error) can be a static string, or can // be dynamically set based on the data returned by the `check` function. severity: data => (data < 10 ? 'info' : 'warning'), // Actions allow the administrator to take some action based on the // alert. actions: [ { label: `Run pending updates`, onClick: async ({ dismiss }) => { await api.mutate(runPendingSearchIndexUpdatesDocument, {}); toast.success('Running pending search index updates'); // Calling this function will immediately dismiss // the alert. dismiss(); }, }, ],}; This alert is the registered in your dashboard extensions extry point: import { defineDashboardExtension } from '@vendure/dashboard';import { pendingSearchIndexUpdatesAlert } from './pending-updates-alert';defineDashboardExtension({ alerts: [pendingSearchIndexUpdatesAlert],});Edit this pageLast updated on Oct 22, 2025PreviousNavigationNextData FetchingCreating a Custom AlertExample: Pending Search Index Updates Alert
-
-```
-DashboardAlertDefinition
-```
-
-**Pattern 5:** Core ConceptsMoney & CurrencyCopy as MDOn this pageMoney & CurrencyIn Vendure, monetary values are stored as integers using the minor unit of the selected currency. For example, if the currency is set to USD, then the integer value 100 would represent $1.00. This is a common practice in financial applications, as it avoids the rounding errors that can occur when using floating-point numbers. For example, here's the response from a query for a product's variant prices: { "data": { "product": { "id": "42", "variants": [ { "id": "74", "name": "Bonsai Tree", "currencyCode": "USD", "price": 1999, "priceWithTax": 2399, } ] } }} In this example, the tax-inclusive price of the variant is $23.99. infoTo illustrate the problem with storing money as decimals, imagine that we want to add the price of two items: Product A: $1.21 Product B: $1.22 We should expect the sum of these two amounts to equal $2.43. However, if we perform this addition in JavaScript (and the same holds true for most common programming languages), we will instead get $2.4299999999999997!For a more in-depth explanation of this issue, see this StackOverflow answer Displaying monetary values​ When you are building your storefront, or any other client that needs to display monetary values in a human-readable form, you need to divide by 100 to convert to the major currency unit and then format with the correct decimal & grouping dividers. In JavaScript environments such as browsers & Node.js, we can take advantage of the excellent Intl.NumberFormat API. Here's a function you can use in your projects: src/utils/format-currency.tsexport function formatCurrency(value: number, currencyCode: string, locale?: string) { const majorUnits = value / 100; try { // Note: if no `locale` is provided, the browser's default // locale will be used. return new Intl.NumberFormat(locale, { style: 'currency', currency: currencyCode, }).format(majorUnits); } catch (e: any) { // A fallback in case the NumberFormat fails for any reason return majorUnits.toFixed(2); }} If you are building an Dashboard extension, you can use the built-in useLocalFormat hook: src/plugins/my-plugin/dashboard/components/my-component.tsximport { useLocalFormat } from '@vendure/dashboard';export function MyComponent({ variant }: MyComponentProps) { const { formatCurrency } = useLocalFormat(); return ( <div> Variant price: { formatCurrency(variant.price, variant.currencyCode) } </div> )} Support for multiple currencies​ Vendure supports multiple currencies out-of-the-box. The available currencies must first be set at the Channel level (see the Channels, Currencies & Prices section), and then a price may be set on a ProductVariant in each of the available currencies. When using multiple currencies, the ProductVariantPriceSelectionStrategy is used to determine which of the available prices to return when fetching the details of a ProductVariant. The default strategy is to return the price in the currency of the current session request context, which is determined firstly by any ?currencyCode=XXX query parameter on the request, and secondly by the defaultCurrencyCode of the Channel. The GraphQL Money scalar​ In the GraphQL APIs, we use a custom Money scalar type to represent all monetary values. We do this for two reasons: The built-in Int type is that the GraphQL spec imposes an upper limit of 2147483647, which in some cases (especially currencies with very large amounts) is not enough. Very advanced use-cases might demand more precision than is possible with an integer type. Using our own custom scalar gives us the possibility of supporting more precision. Here's how the Money scalar is used in the ShippingLine type: type ShippingLine { id: ID! shippingMethod: ShippingMethod! price: Money! priceWithTax: Money! discountedPrice: Money! discountedPriceWithTax: Money! discounts: [Discount!]!} If you are defining custom GraphQL types, or adding fields to existing types (see the Extending the GraphQL API doc), then you should also use the Money scalar for any monetary values. The @Money() decorator​ When defining new database entities, if you need to store a monetary value, then rather than using the TypeORM @Column() decorator, you should use Vendure's @Money() decorator. Using this decorator allows Vendure to correctly store the value in the database according to the configured MoneyStrategy (see below). src/plugins/quote/entities/quote.entity.tsimport { DeepPartial } from '@vendure/common/lib/shared-types';import { VendureEntity, Order, EntityId, Money, CurrencyCode, ID } from '@vendure/core';import { Column, Entity, ManyToOne } from 'typeorm';@Entity()class Quote extends VendureEntity { constructor(input?: DeepPartial<Quote>) { super(input); } @ManyToOne(type => Order) order: Order; @EntityId() orderId: ID; @Column() text: string; @Money() value: number; // Whenever you store a monetary value, it's a good idea to also // explicitly store the currency code too. This makes it possible // to support multiple currencies and correctly format the amount // when displaying the value. @Column('varchar') currencyCode: CurrencyCode; @Column() approved: boolean;} Advanced configuration: MoneyStrategy​ For advanced use-cases, it is possible to configure aspects of how Vendure handles monetary values internally by defining a custom MoneyStrategy. The MoneyStrategy allows you to define: How the value is stored and retrieved from the database How rounding is applied internally The precision represented by the monetary value (since v2.2.0) For example, in addition to the DefaultMoneyStrategy, Vendure also provides the BigIntMoneyStrategy which stores monetary values using the bigint data type, allowing much larger amounts to be stored. Here's how you would configure your server to use this strategy: src/vendure-config.tsimport { VendureConfig, BigIntMoneyStrategy } from '@vendure/core';export const config: VendureConfig = { // ... entityOptions: { moneyStrategy: new BigIntMoneyStrategy(), }} Example: supporting three decimal places​ Let's say you have a B2B store which sells products in bulk, and you want to support prices with three decimal places. For example, you want to be able to sell a product for $1.234 per unit. To do this, you would need to: Configure the MoneyStrategy to use three decimal places import { DefaultMoneyStrategy, VendureConfig } from '@vendure/core';export class ThreeDecimalPlacesMoneyStrategy extends DefaultMoneyStrategy { readonly precision = 3;}export const config: VendureConfig = { // ... entityOptions: { moneyStrategy: new ThreeDecimalPlacesMoneyStrategy(), }}; Set up your storefront to correctly convert the integer value to a decimal value with three decimal places. Using the formatCurrency example above, we can modify it to divide by 1000 instead of 100: src/utils/format-currency.tsexport function formatCurrency(value: number, currencyCode: string, locale?: string) { const majorUnits = value / 1000; try { return new Intl.NumberFormat(locale, { style: 'currency', currency: currencyCode, minimumFractionDigits: 3, maximumFractionDigits: 3, }).format(majorUnits); } catch (e: any) { return majorUnits.toFixed(3); }}Edit this pageLast updated on Oct 22, 2025PreviousImages & AssetsNextOrdersDisplaying monetary valuesSupport for multiple currenciesThe GraphQL Money scalarThe @Money() decoratorAdvanced configuration: MoneyStrategyExample: supporting three decimal places
-
-```
-100
-```
-
-**Pattern 6:** Legacy APIsAngular Admin UICreating List ViewsCopy as MDOn this pageCreating List ViewsThe two most common type of components you'll be creating in your UI extensions are list components and detail components. In Vendure, we have standardized the way you write these components so that your ui extensions can be made to fit seamlessly into the rest of the app. noteThe specific pattern described here is for Angular-based components. It is also possible to create list views using React components, but in that case you won't be able to use the built-in data table & other Angular-specific components. Example: Creating a Product Reviews List​ Let's say you have a plugin which adds a new entity to the database called ProductReview. You want to create a new list view in the Admin UI which displays all the reviews submitted. Use the PaginatedList interface​ To use the standardized list component, you need to make sure your plugin exposes this list in the GraphQL API following the PaginatedList interface: type ProductReview implements Node { id: ID! createdAt: DateTime! updatedAt: DateTime! title: String! rating: Int! text: String! authorName: String! product: Product! productId: ID! }type ProductReviewList implements PaginatedList { items: [ProductReview!]! totalItems: Int!} infoSee the Paginated Lists guide for details on how to implement this in your server plugin code. Create the list component​ The list component itself is an Angular component which extends the BaseListComponent or TypedBaseListComponent class. This example assumes you have set up your project to use code generation as described in the GraphQL code generation guide. src/plugins/reviews/ui/components/review-list/review-list.component.tsimport { ChangeDetectionStrategy, Component } from '@angular/core';import { TypedBaseListComponent, SharedModule } from '@vendure/admin-ui/core';// This is the TypedDocumentNode generated by GraphQL Code Generatorimport { graphql } from '../../gql';const getReviewListDocument = graphql(` query GetReviewList($options: ReviewListOptions) { reviews(options: $options) { items { id createdAt updatedAt title rating text authorName productId } totalItems } }`);@Component({ selector: 'review-list', templateUrl: './review-list.component.html', styleUrls: ['./review-list.component.scss'], changeDetection: ChangeDetectionStrategy.OnPush, standalone: true, imports: [SharedModule],})export class ReviewListComponent extends TypedBaseListComponent<typeof getReviewListDocument, 'reviews'> { // Here we set up the filters that will be available // to use in the data table readonly filters = this.createFilterCollection() .addIdFilter() .addDateFilters() .addFilter({ name: 'title', type: {kind: 'text'}, label: 'Title', filterField: 'title', }) .addFilter({ name: 'rating', type: {kind: 'number'}, label: 'Rating', filterField: 'rating', }) .addFilter({ name: 'authorName', type: {kind: 'text'}, label: 'Author', filterField: 'authorName', }) .connectToRoute(this.route); // Here we set up the sorting options that will be available // to use in the data table readonly sorts = this.createSortCollection() .defaultSort('createdAt', 'DESC') .addSort({name: 'createdAt'}) .addSort({name: 'updatedAt'}) .addSort({name: 'title'}) .addSort({name: 'rating'}) .addSort({name: 'authorName'}) .connectToRoute(this.route); constructor() { super(); super.configure({ document: getReviewListDocument, getItems: data => data.reviews, setVariables: (skip, take) => ({ options: { skip, take, filter: { title: { contains: this.searchTermControl.value, }, ...this.filters.createFilterInput(), }, sort: this.sorts.createSortInput(), }, }), refreshListOnChanges: [this.filters.valueChanges, this.sorts.valueChanges], }); }} Create the template​ This is the standard layout for any list view. The main functionality is provided by the DataTable2Component. src/plugins/reviews/ui/components/review-list/review-list.component.html<!-- optional if you want some buttons at the top --><vdr-page-block> <vdr-action-bar> <vdr-ab-left></vdr-ab-left> <vdr-ab-right> <a class="btn btn-primary" *vdrIfPermissions="['CreateReview']" [routerLink]="['./', 'create']"> <clr-icon shape="plus"></clr-icon> Create a review </a> </vdr-ab-right> </vdr-action-bar></vdr-page-block><!-- The data table --><vdr-data-table-2 id="review-list" [items]="items$ | async" [itemsPerPage]="itemsPerPage$ | async" [totalItems]="totalItems$ | async" [currentPage]="currentPage$ | async" [filters]="filters" (pageChange)="setPageNumber($event)" (itemsPerPageChange)="setItemsPerPage($event)"> <!-- optional if you want to support bulk actions --> <vdr-bulk-action-menu locationId="review-list" [hostComponent]="this" [selectionManager]="selectionManager" /> <!-- Adds a search bar --> <vdr-dt2-search [searchTermControl]="searchTermControl" searchTermPlaceholder="Filter by title" /> <!-- Here we define all the available columns --> <vdr-dt2-column id="id" [heading]="'common.id' | translate" [hiddenByDefault]="true"> <ng-template let-review="item"> {{ review.id }} </ng-template> </vdr-dt2-column> <vdr-dt2-column id="created-at" [heading]="'common.created-at' | translate" [hiddenByDefault]="true" [sort]="sorts.get('createdAt')" > <ng-template let-review="item"> {{ review.createdAt | localeDate : 'short' }} </ng-template> </vdr-dt2-column> <vdr-dt2-column id="updated-at" [heading]="'common.updated-at' | translate" [hiddenByDefault]="true" [sort]="sorts.get('updatedAt')" > <ng-template let-review="item"> {{ review.updatedAt | localeDate : 'short' }} </ng-template> </vdr-dt2-column> <vdr-dt2-column id="title" heading="Title" [optional]="false" [sort]="sorts.get('title')"> <ng-template let-review="item"> <a class="button-ghost" [routerLink]="['./', review.id]" ><span>{{ review.title }}</span> <clr-icon shape="arrow right"></clr-icon> </a> </ng-template> </vdr-dt2-column> <vdr-dt2-column id="rating" heading="Rating" [sort]="sorts.get('rating')"> <ng-template let-review="item"><my-star-rating-component [rating]="review.rating" /></ng-template> </vdr-dt2-column> <vdr-dt2-column id="author" heading="Author" [sort]="sorts.get('authorName')"> <ng-template let-review="item">{{ review.authorName }}</ng-template> </vdr-dt2-column></vdr-data-table-2> Route config​ src/plugins/reviews/ui/routes.tsimport { registerRouteComponent } from '@vendure/admin-ui/core';import { ReviewListComponent } from './components/review-list/review-list.component';export default [ registerRouteComponent({ path: '', component: ReviewListComponent, breadcrumb: 'Product reviews', }),] Supporting custom fields​ From Vendure v2.2, it is possible for your custom entities to support custom fields. If you have set up your entity to support custom fields, and you want custom fields to be available in the Admin UI list view, you need to add the following to your list component: src/plugins/reviews/ui/components/review-list/review-list.component.ts@Component({ selector: 'review-list', templateUrl: './review-list.component.html', styleUrls: ['./review-list.component.scss'], changeDetection: ChangeDetectionStrategy.OnPush, standalone: true, imports: [SharedModule],})export class ReviewListComponent extends TypedBaseListComponent<typeof getReviewListDocument, 'reviews'> { customFields = this.getCustomFieldConfig('ProductReview'); readonly filters = this.createFilterCollection() .addIdFilter() .addDateFilters() .addFilter({ name: 'title', type: {kind: 'text'}, label: 'Title', filterField: 'title', }) .addFilter({ name: 'rating', type: {kind: 'number'}, label: 'Rating', filterField: 'rating', }) .addFilter({ name: 'authorName', type: {kind: 'text'}, label: 'Author', filterField: 'authorName', }) .addCustomFieldFilters(this.customFields) .connectToRoute(this.route); readonly sorts = this.createSortCollection() .defaultSort('createdAt', 'DESC') .addSort({name: 'createdAt'}) .addSort({name: 'updatedAt'}) .addSort({name: 'title'}) .addSort({name: 'rating'}) .addSort({name: 'authorName'}) .addCustomFieldSorts(this.customFields) .connectToRoute(this.route); // rest of class omitted for brevity} and then add the vdr-dt2-custom-field-column component to your data table: src/plugins/reviews/ui/components/review-list/review-list.component.html<vdr-data-table-2 id="review-list" [items]="items$ | async" [itemsPerPage]="itemsPerPage$ | async" [totalItems]="totalItems$ | async" [currentPage]="currentPage$ | async" [filters]="filters" (pageChange)="setPageNumber($event)" (itemsPerPageChange)="setItemsPerPage($event)"> <!-- rest of data table omitted for brevity --> <vdr-dt2-custom-field-column *ngFor="let customField of customFields" [customField]="customField" [sorts]="sorts" /></vdr-data-table-2>Edit this pageLast updated on Oct 22, 2025PreviousDefining routesNextCreating Detail ViewsExample: Creating a Product Reviews ListUse the PaginatedList interfaceCreate the list componentCreate the templateRoute configSupporting custom fields
-
-```
-ProductReview
-```
-
-**Pattern 7:** Legacy APIsMigrating from v1Breaking API ChangesCopy as MDOn this pageBreaking API Changes Breaks from updated dependencies​ TypeScript​ v2 is built on TypeScript v4.9.5. You should update your TypeScript version to match this. Doing so is quite likely to reveal new compiler errors (as is usual with TypeScript minor release updates). If you are using ts-node, update it to the latest version If you are targeting ES2022 or ESNEXT in your tsconfig.json, you'll need to set "useDefineForClassFields": false. See this issue for more context. Apollo Server & GraphQL​ If you have any custom ApolloServerPlugins, the plugin methods must now return a Promise. Example: export class TranslateErrorsPlugin implements ApolloServerPlugin { constructor(private i18nService: I18nService) {}- requestDidStart(): GraphQLRequestListener {+ async requestDidStart(): Promise<GraphQLRequestListener> { return {- willSendResponse: requestContext => {+ willSendResponse: async requestContext => { const { errors, context } = requestContext; if (errors) { (requestContext.response as any).errors = errors.map(err => { return this.i18nService.translateError(context.req, err as GraphQLError) as any; }); } }, }; }} With the update to GraphQL v16, you might run into issues with other packages in the GraphQL ecosystem that also depend on the graphql package, such as graphql-code-generator. In this case these packages will also need to be updated. For instance, if you are using the "typescript-compatibility" plugin to generate namespaced types, you'll need to drop this, as it is no longer maintained. TypeORM​ TypeORM 0.3.x introduced a large number of breaking changes. For a complete guide, see the TypeORM v0.3.0 release notes. Here are the main API changes you'll likely need to make: You can no longer compare to null, you need to use the new IsNull() helper: + import { IsNull } from 'typeorm';- .find({ where: { deletedAt: null } })+ .find({ where: { deletedAt: IsNull() } }) The findOne() method returns null rather than undefined if a record is not found. The findOne() method no longer accepts an id argument. Lookup based on id must be done with a where clause: - .findOne(variantId)+ .findOne({ where: { id: variantId } }) Where clauses must use an entity id rather than passing an entity itself: - .find({ where: { user } })+ .find({ where: { user: { id: user.id } } }) The findByIds() method has been deprecated. Use the new In helper instead: + import { In } from 'typeorm';- .findByIds(ids)+ .find({ where: { id: In(ids) } }) Vendure TypeScript API Changes​ Custom Order / Fulfillment / Payment processes​ In v2, the hard-coded states & transition logic for the Order, Fulfillment and Payment state machines has been extracted from the core services and instead reside in a default OrderProcess, FulfillmentProcess and PaymentProcess object. This allows you to fully customize these flows without having to work around the assumptions & logic implemented by the default processes. What this means is that if you are defining a custom process, you'll now need to explicitly add the default process to the array. + import { defaultOrderProcess } from '@vendure/core';orderOptions: {- process: [myCustomOrderProcess],+ process: [defaultOrderProcess, myCustomOrderProcess],} Also note that shippingOptions.customFulfillmentProcess and paymentOptions.customPaymentProcess are both now renamed to process. The old names are still usable but are deprecated. OrderItem no longer exists​ As a result of #1981, the OrderItem entity no longer exists. The function and data of OrderItem is now transferred to OrderLine. As a result, the following APIs which previously used OrderItem arguments have now changed: FulfillmentHandler ChangedPriceHandlingStrategy PromotionItemAction TaxLineCalculationStrategy If you have implemented any of these APIs, you'll need to check each one, remove the OrderItem argument from any methods that are using it, and update any logic as necessary. You may also be joining the OrderItem relation in your own TypeORM queries, so you'll need to check for code like this: const order = await this.connection .getRepository(Order) .createQueryBuilder('order') .leftJoinAndSelect('order.lines', 'line')- .leftJoinAndSelect('line.items', 'items') or const order = await this.connection .getRepository(Order) .findOne(ctx, orderId, {- relations: ['lines', 'lines.items'],+ relations: ['lines'], }); ProductVariant stock changes​ With #1545 we have changed the way we model stock levels in order to support multiple stock locations. This means that the ProductVariant.stockOnHand and ProductVariant.stockAllocated properties no longer exist on the ProductVariant entity in TypeScript. Instead, this information is now located at ProductVariant.stockLevels, which is an array of StockLevel entities. New return type for Channel, TaxCategory & Zone lists​ The ChannelService.findAll() method now returns a PaginatedList<Channel> instead of Channel[]. The channels GraphQL query now returns a PaginatedList rather than a simple array of Channels. The TaxCategoryService.findAll() method now returns a PaginatedList<TaxCategory> instead of TaxCategory[]. The taxCategories GraphQL query now returns a PaginatedList rather than a simple array of TaxCategories. The ZoneService.findAll() method now returns a PaginatedList<Zone> instead of Zone[]. The old behaviour of ZoneService.findAll() (all Zones, cached for rapid access) can now be found under the new ZoneService.getAllWithMembers() method. The zones GraphQL query now returns a PaginatedList rather than a simple array of Zones. Admin UI changes​ If you are using the @vendure/ui-devkit package to generate custom ui extensions, here are the breaking changes to be aware of: As part of the major refresh to the Admin UI app, certain layout elements had be changed which can cause your custom routes to look bad. Wrapping all your custom pages in <vdr-page-block> (or <div class="page-block"> if not built with Angular components) will improve things. There will soon be a comprehensive guide published on how to create seamless ui extensions that look just like the built-in screens. If you use any of the scoped method of the Admin UI DataService, you might find that some no longer exist. They are now deprecated and will eventually be removed. Use the dataService.query() and dataService.mutation() methods only, passing your own GraphQL documents: // Old waythis.dataService.product.getProducts().single$.subscribe(...); // New wayconst GET_PRODUCTS = gql` query GetProducts { products { items { id name # ... etc } } }`;this.dataService.query(GET_PRODUCTS).single$.subscribe(...); The Admin UI component vdr-product-selector has been renamed to vdr-product-variant-selector to more accurately represent what it does. If you are using vdr-product-selector if any ui extensions code, update it to use the new selector. Other breaking API changes​ End-to-end tests using Jest will likely run into issues due to our move towards using some dependencies that make use of ES modules. We have found the best solution to be to migrate tests over to Vitest, which can handle this and is also significantly faster than Jest. See the updated Testing guide for instructions on getting started with Vitest. Internal ErrorResult classes now take a single object argument rather than multiple args. All monetary values are now represented in the GraphQL APIs with a new Money scalar type. If you use graphql-code-generator, you'll want to tell it to treat this scalar as a number: import { CodegenConfig } from '@graphql-codegen/cli'const config: CodegenConfig = { schema: 'http://localhost:3000/shop-api', documents: ['src/**/*graphql.ts'], config: { scalars: { Money: 'number', }, }, generates: { // .. }}; A new Region entity has been introduced, which is a base class for Country and the new Province entity. The Zone.members property is now an array of Region rather than Country, since Zones may now be composed of both countries and provinces. If you have defined any custom fields on Country, you'll need to change it to Region in your custom fields config. If you are using the s3 storage strategy of the AssetServerPlugin, it has been updated to use v3 of the AWS SDKs. This update introduces an improved modular architecture to the AWS sdk, resulting in smaller bundle sizes. You need to install the @aws-sdk/client-s3 & @aws-sdk/lib-storage packages, and can remove the aws-sdk package. If you are using it in combination with MinIO, you'll also need to rename a config property and provide a region: nativeS3Configuration: { endpoint: 'http://localhost:9000',- s3ForcePathStyle: true,+ forcePathStyle: true, signatureVersion: 'v4',+ region: 'eu-west-1',} The Stripe plugin has been made channel aware. This means your api key and webhook secret are now stored in the database, per channel, instead of environment variables. To migrate to v2 of the Stripe plugin from @vendure/payments you need to: Remove the apiKey and webhookSigningSecret from the plugin initialization in vendure-config.ts: StripePlugin.init({- apiKey: process.env.YOUR_STRIPE_SECRET_KEY,- webhookSigningSecret: process.env.YOUR_STRIPE_WEBHOOK_SIGNING_SECRET, storeCustomersInStripe: true,}), Start the server and login as administrator. For each channel that you'd like to use Stripe payments, you need to create a payment method with payment handler Stripe payment and the apiKey and webhookSigningSecret belonging to that channel's Stripe account. If you are using the BullMQJobQueuePlugin, the minimum Redis recommended version is 6.2.0. The WorkerHealthIndicator which was deprecated in v1.3.0 has been removed, as well as the jobQueueOptions.enableWorkerHealthCheck config option. The CustomerGroupEntityEvent (fired on creation, update or deletion of a CustomerGroup) has been renamed to CustomerGroupEvent, and the former CustomerGroupEvent (fired when Customers are added to or removed from a group) has been renamed to CustomerGroupChangeEvent. We introduced the plugin compatibility API to allow plugins to indicate what version of Vendure they are compatible with. To avoid bootstrap messages you should add this property to your plugins. Edit this pageLast updated on Oct 22, 2025PreviousDatabase MigrationNextStorefront MigrationBreaks from updated dependenciesTypeScriptApollo Server & GraphQLTypeORMVendure TypeScript API ChangesCustom Order / Fulfillment / Payment processesOrderItem no longer existsProductVariant stock changesNew return type for Channel, TaxCategory & Zone listsAdmin UI changesOther breaking API changes
-
-```
-ts-node
-```
-
-**Pattern 8:** Building a StorefrontConnect to the APICopy as MDOn this pageConnect to the APIThe first thing you'll need to do is to connect your storefront app to the Shop API. The Shop API is a GraphQL API that provides access to the products, collections, customer data, and exposes mutations that allow you to add items to the cart, checkout, manage customer accounts, and more. tipYou can explore the Shop API by opening the GraphQL Playground in your browser at http://localhost:3000/shop-api when your Vendure server is running locally. Select a GraphQL client​ GraphQL requests are made over HTTP, so you can use any HTTP client such as the Fetch API to make requests to the Shop API. However, there are also a number of specialized GraphQL clients which can make working with GraphQL APIs easier. Here are some popular options: Apollo Client: A full-featured client which includes a caching layer and React integration. urql: The highly customizable and versatile GraphQL client for React, Svelte, Vue, or plain JavaScript graphql-request: Minimal GraphQL client supporting Node and browsers for scripts or simple apps TanStack Query: Powerful asynchronous state management for TS/JS, React, Solid, Vue and Svelte, which can be combined with graphql-request. Managing Sessions​ Vendure supports two ways to manage user sessions: cookies and bearer token. The method you choose depends on your requirements, and is specified by the authOptions.tokenMethod property of the VendureConfig. By default, both are enabled on the server: src/vendure-config.tsimport { VendureConfig } from '@vendure/core';export const config: VendureConfig = { // ... authOptions: { tokenMethod: ['bearer', 'cookie'], },}; Cookie-based sessions​ Using cookies is the simpler approach for browser-based applications, since the browser will manage the cookies for you automatically. Enable the credentials option in your HTTP client. This allows the browser to send the session cookie with each request. For example, if using a fetch-based client (such as Apollo client) you would set credentials: 'include' or if using XMLHttpRequest, you would set withCredentials: true When using cookie-based sessions, you should set the authOptions.cookieOptions.secret property to some secret string which will be used to sign the cookies sent to clients to prevent tampering. This string could be hard-coded in your config file, or (better) reside in an environment variable: src/vendure-config.tsimport { VendureConfig } from '@vendure/core';export const config: VendureConfig = { // ... authOptions: { tokenMethod: ['bearer', 'cookie'], cookieOptions: { secret: process.env.COOKIE_SESSION_SECRET } }} cautionSameSite cookiesWhen using cookies to manage sessions, you need to be aware of the SameSite cookie policy. This policy is designed to prevent cross-site request forgery (CSRF) attacks, but can cause problems when using a headless storefront app which is hosted on a different domain to the Vendure server. See this article for more information. Bearer-token sessions​ Using bearer tokens involves a bit more work on your part: you'll need to manually read response headers to get the token, and once you have it you'll have to manually add it to the headers of each request. The workflow would be as follows: Certain mutations and queries initiate a session (e.g. logging in, adding an item to an order etc.). When this happens, the response will contain a HTTP header which by default is called 'vendure-auth-token'. So your http client would need to check for the presence of this header each time it receives a response from the server. If the 'vendure-auth-token' header is present, read the value and store it because this is your bearer token. Attach this bearer token to each subsequent request as Authorization: Bearer <token>. Here's a simplified example of how that would look: let token: string | undefined = localStorage.getItem('token')export async function request(query: string, variables: any) { // If we already know the token, set the Authorization header. const headers = token ? { Authorization: `Bearer ${token}` } : {}; const response = await someGraphQlClient(query, variables, headers); // Check the response headers to see if Vendure has set the // auth token. The header key "vendure-auth-token" may be set to // a custom value with the authOptions.authTokenHeaderKey config option. const authToken = response.headers.get('vendure-auth-token'); if (authToken != null) { token = authToken; } return response.data;} There are some concrete examples of this approach in the examples later on in this guide. Session duration​ The duration of a session is determined by the AuthOptions.sessionDuration config property. Sessions will automatically extend (or "refresh") when a user interacts with the API, so in effect the sessionDuration signifies the length of time that a session will stay valid since the last API call. Specifying a channel​ If your project has multiple channels, you can specify the active channel by setting the vendure-token header on each request to match the channelToken for the desired channel. Let's say you have a channel with the token uk-channel and you want to make a request to the Shop API to get the products in that channel. You would set the vendure-token header to uk-channel: src/client.tsexport function query(document: string, variables: Record<string, any> = {}) { return fetch('https://localhost:3000/shop-api', { method: 'POST', headers: { 'content-type': 'application/json', 'vendure-token': 'uk-channel', }, credentials: 'include', body: JSON.stringify({ query: document, variables, }), }) .then((res) => res.json()) .catch((err) => console.log(err));} noteIf no channel token is specified, then the default channel will be used. infoThe header name vendure-token is the default, but can be changed using the apiOptions.channelTokenKey config option. Setting language​ If you have translations of your products, collections, facets etc, you can specify the language for the request by setting the languageCode query string on the request. The value should be one of the ISO 639-1 codes defined by the LanguageCode enum. POST http://localhost:3000/shop-api?languageCode=de Code generation​ If you are building your storefront with TypeScript, we highly recommend you set up code generation to ensure that the responses from your queries & mutation are always correctly typed according the fields you request. See the GraphQL Code Generation guide for more information. Examples​ Here are some examples of how to set up clients to connect to the Shop API. All of these examples include functions for setting the language and channel token. Fetch​ First we'll look at a plain fetch-based implementation, to show you that there's no special magic to a GraphQL request - it's just a POST request with a JSON body. Note that we also include a React hook in this example, but that's just to make it more convenient to use the client in a React component - it is not required. client.tsApp.tsxindex.tssrc/client.tsimport { useState, useEffect } from 'react';// If using bearer-token based session management, we'll store the token// in localStorage using this key.const AUTH_TOKEN_KEY = 'auth_token';const API_URL = 'https://readonlydemo.vendure.io/shop-api';let languageCode: string | undefined;let channelToken: string | undefined;export function setLanguageCode(value: string | undefined) { languageCode = value;}export function setChannelToken(value: string | undefined) { channelToken = value;}export function query(document: string, variables: Record<string, any> = {}) { const authToken = localStorage.getItem(AUTH_TOKEN_KEY); const headers = new Headers({ 'content-type': 'application/json', }); if (authToken) { headers.append('authorization', `Bearer ${authToken}`); } if (channelToken) { headers.append('vendure-token', channelToken); } let endpoint = API_URL; if (languageCode) { endpoint += `?languageCode=${languageCode}`; } return fetch(endpoint, { method: 'POST', headers, credentials: 'include', body: JSON.stringify({ query: document, variables, }), }).then((res) => { if (!res.ok) { throw new Error(`An error ocurred, HTTP status: ${res.status}`); } const newAuthToken = res.headers.get('vendure-auth-token'); if (newAuthToken) { localStorage.setItem(AUTH_TOKEN_KEY, newAuthToken); } return res.json(); });}/** * Here we have wrapped the `query` function into a React hook for convenient use in * React components. */ export function useQuery( document: string, variables: Record<string, any> = {}) { const [data, setData] = useState(null); const [loading, setLoading] = useState(true); const [error, setError] = useState(null); useEffect(() => { query(document, variables) .then((result) => { setData(result.data); setError(null); }) .catch((err) => { setError(err.message); setData(null); }) .finally(() => { setLoading(false); }); }, []); return { data, loading, error };}src/App.tsximport { useQuery } from './client';import './style.css';const GET_PRODUCTS = /*GraphQL*/ ` query GetProducts($options: ProductListOptions) { products(options: $options) { items { id name slug featuredAsset { preview } } } }`;export default function App() { const { data, loading, error } = useQuery(GET_PRODUCTS, { options: { take: 3 }, }); if (loading) return <p>Loading...</p>; if (error) return <p>Error : {error.message}</p>; return data.products.items.map(({ id, name, slug, featuredAsset }) => ( <div key={id}> <h3>{name}</h3> <img src={`${featuredAsset.preview}?preset=small`} alt={name} /> </div> ));}src/index.ts import * as React from 'react'; import { StrictMode } from 'react'; import { createRoot } from 'react-dom/client'; import App from './App'; const rootElement = document.getElementById('root'); const root = createRoot(rootElement); root.render( <StrictMode> <App /> </StrictMode> ); Here's a live version of this example: As you can see, the basic implementation with fetch is quite straightforward. However, it is also lacking some features that other, dedicated client libraries will provide. Apollo Client​ Here's an example configuration for Apollo Client with a React app. Follow the getting started instructions to install the required packages. client.tsindex.tsxApp.tsxsrc/client.tsimport { ApolloClient, ApolloLink, HttpLink, InMemoryCache,} from '@apollo/client';import { setContext } from '@apollo/client/link/context';const API_URL = `https://demo.vendure.io/shop-api`;// If using bearer-token based session management, we'll store the token// in localStorage using this key.const AUTH_TOKEN_KEY = 'auth_token';let channelToken: string | undefined;let languageCode: string | undefined;const httpLink = new HttpLink({ uri: () => { if (languageCode) { return `${API_URL}?languageCode=${languageCode}`; } else { return API_URL; } }, // This is required if using cookie-based session management, // so that any cookies get sent with the request. credentials: 'include',});// This part is used to check for and store the session token// if it is returned by the server.const afterwareLink = new ApolloLink((operation, forward) => { return forward(operation).map((response) => { const context = operation.getContext(); const authHeader = context.response.headers.get('vendure-auth-token'); if (authHeader) { // If the auth token has been returned by the Vendure // server, we store it in localStorage localStorage.setItem(AUTH_TOKEN_KEY, authHeader); } return response; });});/** * Used to specify a channel token for projects that use * multiple Channels. */export function setChannelToken(value: string | undefined) { channelToken = value;}/** * Used to specify a language for any localized results. */export function setLanguageCode(value: string | undefined) { languageCode = value;}export const client = new ApolloClient({ link: ApolloLink.from([ // If we have stored the authToken from a previous // response, we attach it to all subsequent requests. setContext((request, operation) => { const authToken = localStorage.getItem(AUTH_TOKEN_KEY); let headers: Record<string, any> = {}; if (authToken) { headers.authorization = `Bearer ${authToken}`; } if (channelToken) { headers['vendure-token'] = channelToken; } return { headers }; }), afterwareLink, httpLink, ]), cache: new InMemoryCache(),});src/index.tsximport React from 'react';import * as ReactDOM from 'react-dom/client';import { ApolloProvider } from '@apollo/client';import App from './App';import { client } from './client';// Supported in React 18+const root = ReactDOM.createRoot(document.getElementById('root'));root.render( <ApolloProvider client={client}> <App /> </ApolloProvider>,);src/App.tsximport { useQuery, gql } from '@apollo/client';const GET_PRODUCTS = gql` query GetProducts($options: ProductListOptions) { products(options: $options) { items { id name slug featuredAsset { preview } } } }`;export default function App() { const { loading, error, data } = useQuery(GET_PRODUCTS, { variables: { options: { take: 3 } }, }); if (loading) return <p>Loading...</p>; if (error) return <p>Error : {error.message}</p>; return data.products.items.map(({ id, name, slug, featuredAsset }) => ( <div key={id}> <h3>{name}</h3> <img src={`${featuredAsset.preview}?preset=small`} alt={name} /> </div> ));} Here's a live version of this example: TanStack Query​ Here's an example using @tanstack/query in combination with graphql-request based on this guide. Note that in this example we have also installed the @graphql-typed-document-node/core package, which allows the client to work with TypeScript code generation for type-safe queries. client.tsApp.tsxindex.tsxsrc/client.tsimport type { TypedDocumentNode } from '@graphql-typed-document-node/core';import { GraphQLClient, RequestDocument, RequestMiddleware, ResponseMiddleware, Variables,} from 'graphql-request';// If using bearer-token based session management, we'll store the token// in localStorage using this key.const AUTH_TOKEN_KEY = 'auth_token';const API_URL = 'http://localhost:3000/shop-api';// If we have a session token, add it to the outgoing requestconst requestMiddleware: RequestMiddleware = async (request) => { const authToken = localStorage.getItem(AUTH_TOKEN_KEY); return { ...request, headers: { ...request.headers, ...(authToken ? { authorization: `Bearer ${authToken}` } : {}), }, };};// Check all responses for a new session tokenconst responseMiddleware: ResponseMiddleware = (response) => { if (!(response instanceof Error) && !response.errors) { const authHeader = response.headers.get('vendure-auth-token'); if (authHeader) { // If the session token has been returned by the Vendure // server, we store it in localStorage localStorage.setItem(AUTH_TOKEN_KEY, authHeader); } }};const client = new GraphQLClient(API_URL, { // Required for cookie-based sessions credentials: 'include', requestMiddleware, responseMiddleware,});/** * Sets the languageCode to be used for all subsequent requests. */export function setLanguageCode(languageCode: string | undefined) { if (!languageCode) { client.setEndpoint(API_URL); } else { client.setEndpoint(`${API_URL}?languageCode=${languageCode}`); }}/** * Sets the channel token to be used for all subsequent requests. */export function setChannelToken(channelToken: string | undefined) { if (!channelToken) { client.setHeader('vendure-token', undefined); } else { client.setHeader('vendure-token', channelToken); }}/** * Makes a GraphQL request using the `graphql-request` client. */export function request<T, V extends Variables = Variables>( document: RequestDocument | TypedDocumentNode<T, V>, variables: Record<string, any> = {}) { return client.request(document, variables);}src/App.tsximport * as React from 'react';import { gql } from 'graphql-request';import { useQuery } from '@tanstack/react-query';import { request } from './client';const GET_PRODUCTS = gql` query GetProducts($options: ProductListOptions) { products(options: $options) { items { id name slug featuredAsset { preview } } } }`;export default function App() { const { isLoading, data } = useQuery({ queryKey: ['products'], queryFn: async () => request(GET_PRODUCTS, { options: { take: 3 }, }), }); if (isLoading) return <p>Loading...</p>; return data ? ( data.products.items.map(({ id, name, slug, featuredAsset }) => ( <div key={id}> <h3>{name}</h3> <img src={`${featuredAsset.preview}?preset=small`} alt={name} /> </div> )) ) : ( <>Loading...</> );}src/index.tsximport * as React from 'react';import { StrictMode } from 'react';import { createRoot } from 'react-dom/client';import { QueryClient, QueryClientProvider } from '@tanstack/react-query';import App from './App';// Create a clientconst queryClient = new QueryClient();const rootElement = document.getElementById('root');const root = createRoot(rootElement);root.render( <StrictMode> <QueryClientProvider client={queryClient}> <App /> </QueryClientProvider> </StrictMode>); Here's a live version of this example: Edit this pageLast updated on Oct 22, 2025PreviousStorefront StartersNextStorefront GraphQL Code GenerationSelect a GraphQL clientManaging SessionsCookie-based sessionsBearer-token sessionsSession durationSpecifying a channelSetting languageCode generationExamplesFetchApollo ClientTanStack Query
-
-```
-http://localhost:3000/shop-api
-```
-
-### Example Code Patterns
-
-**Example 1** (bash):
 ```bash
 npx @vendure/create my-shop
 ```
 
-**Example 2** (text):
+This launches an interactive wizard:
+
 ```text
-┌  Let's create a Vendure App ✨│◆  How should we proceed?│  ● Quick Start (Get up and running in a single step)│  ○ Manual Configuration└
+┌  Let's create a Vendure App ✨
+│◆  How should we proceed?
+│  ● Quick Start (Get up and running in a single step)
+│  ○ Manual Configuration
+└
 ```
 
-**Example 3** (graphql):
+---
+
+**Pattern 2: Format Currency Values**
+
+Vendure stores monetary values as integers (e.g., 100 = $1.00). Use this function to display them:
+
+```typescript
+export function formatCurrency(value: number, currencyCode: string, locale?: string) {
+    const majorUnits = value / 100;
+    try {
+        return new Intl.NumberFormat(locale, {
+            style: 'currency',
+            currency: currencyCode,
+        }).format(majorUnits);
+    } catch (e: any) {
+        return majorUnits.toFixed(2);
+    }
+}
+```
+
+**Usage:**
+```typescript
+formatCurrency(2399, 'USD'); // "$23.99"
+```
+
+---
+
+**Pattern 3: Create a Custom Payment Handler**
+
+Integrate a payment provider with a PaymentMethodHandler:
+
+```typescript
+import { PaymentMethodHandler, CreatePaymentResult, SettlePaymentResult } from '@vendure/core';
+
+const myPaymentHandler = new PaymentMethodHandler({
+    code: 'my-payment-method',
+    description: [{
+        languageCode: LanguageCode.en,
+        value: 'My Payment Provider',
+    }],
+    args: {
+        apiKey: { type: 'string', label: 'API Key' },
+    },
+
+    createPayment: async (ctx, order, amount, args, metadata): Promise<CreatePaymentResult> => {
+        // Integrate with payment provider SDK
+        const result = await paymentProvider.authorize({
+            amount,
+            token: metadata.paymentToken,
+            apiKey: args.apiKey,
+        });
+
+        return {
+            amount,
+            state: 'Authorized',
+            transactionId: result.transactionId,
+            metadata: result,
+        };
+    },
+
+    settlePayment: async (ctx, order, payment, args): Promise<SettlePaymentResult> => {
+        const result = await paymentProvider.capture(payment.transactionId);
+        return { success: true };
+    },
+});
+```
+
+---
+
+**Pattern 4: Email Event Handler**
+
+Send emails when events occur (e.g., order confirmation):
+
+```typescript
+import { EmailEventListener } from '@vendure/email-plugin';
+import { OrderStateTransitionEvent } from '@vendure/core';
+
+const confirmationHandler = new EmailEventListener('order-confirmation')
+    .on(OrderStateTransitionEvent)
+    .filter(event => event.toState === 'PaymentSettled')
+    .setRecipient(event => event.order.customer.emailAddress)
+    .setFrom('{{ fromAddress }}')
+    .setSubject(`Order confirmation for #{{ order.code }}`)
+    .setTemplateVars(event => ({ order: event.order }));
+```
+
+Place template at: `<app root>/static/email/templates/order-confirmation/body.hbs`
+
+---
+
+**Pattern 5: Define a Custom Strategy Interface**
+
+Create pluggable, extensible plugin behavior with strategies:
+
+```typescript
+import { InjectableStrategy, RequestContext } from '@vendure/core';
+
+export interface MyCustomStrategy extends InjectableStrategy {
+    /**
+     * Process some data and return a result
+     */
+    processData(ctx: RequestContext, data: any): Promise<string>;
+
+    /**
+     * Validate the input data
+     */
+    validateInput(data: any): boolean;
+}
+```
+
+**Default Implementation:**
+
+```typescript
+import { Injector, Logger } from '@vendure/core';
+
+export class DefaultMyCustomStrategy implements MyCustomStrategy {
+    private someService: SomeService;
+
+    async init(injector: Injector): Promise<void> {
+        this.someService = injector.get(SomeService);
+        Logger.info('Strategy initialized');
+    }
+
+    async destroy(): Promise<void> {
+        // Clean up resources
+    }
+
+    async processData(ctx: RequestContext, data: any): Promise<string> {
+        if (!this.validateInput(data)) {
+            throw new Error('Invalid input data');
+        }
+        return this.someService.process(data);
+    }
+
+    validateInput(data: any): boolean {
+        return data != null && typeof data === 'object';
+    }
+}
+```
+
+---
+
+**Pattern 6: Upload Files with Custom Mutation**
+
+Allow customers to upload avatar images:
+
+```typescript
+import gql from 'graphql-tag';
+
+// 1. Schema definition
+export const shopApiExtensions = gql`
+    extend type Mutation {
+        setCustomerAvatar(file: Upload!): Asset
+    }
+`;
+
+// 2. Resolver implementation
+import { Args, Mutation, Resolver } from '@nestjs/graphql';
+import { Allow, AssetService, Ctx, Permission, RequestContext, Transaction } from '@vendure/core';
+
+@Resolver()
+export class CustomerAvatarResolver {
+    constructor(private assetService: AssetService) {}
+
+    @Transaction()
+    @Mutation()
+    @Allow(Permission.Authenticated)
+    async setCustomerAvatar(
+        @Ctx() ctx: RequestContext,
+        @Args() args: { file: any },
+    ): Promise<Asset | undefined> {
+        const asset = await this.assetService.create(ctx, {
+            file: args.file,
+            tags: ['customer-avatar'],
+        });
+        return asset;
+    }
+}
+```
+
+---
+
+**Pattern 7: OrderInterceptor - Enforce Min/Max Quantity**
+
+Prevent order operations based on custom validation logic:
+
+```typescript
+import { OrderInterceptor, WillAddItemToOrderInput, RequestContext, Order } from '@vendure/core';
+
+export class MinMaxOrderInterceptor implements OrderInterceptor {
+    willAddItemToOrder(
+        ctx: RequestContext,
+        order: Order,
+        input: WillAddItemToOrderInput,
+    ): Promise<void | string> | void | string {
+        const { productVariant, quantity } = input;
+        const min = productVariant.customFields?.minOrderQuantity;
+        const max = productVariant.customFields?.maxOrderQuantity;
+
+        if (min && quantity < min) {
+            return `Minimum order quantity for "${productVariant.name}" is ${min}`;
+        }
+        if (max && quantity > max) {
+            return `Maximum order quantity for "${productVariant.name}" is ${max}`;
+        }
+    }
+}
+```
+
+Register in config:
+
+```typescript
+orderOptions: {
+    orderInterceptors: [new MinMaxOrderInterceptor()],
+}
+```
+
+---
+
+**Pattern 8: GraphQL Query Example**
+
+Fetch products with prices:
+
 ```graphql
-type Customer {  id: ID!  name: String!  email: String!}
+query GetProducts($options: ProductListOptions) {
+    products(options: $options) {
+        items {
+            id
+            name
+            slug
+            featuredAsset {
+                preview
+            }
+            variants {
+                id
+                name
+                currencyCode
+                price
+                priceWithTax
+            }
+        }
+    }
+}
 ```
 
-**Example 4** (graphql):
-```graphql
-type Order {  id: ID!  orderPlacedAt: DateTime  isActive: Boolean!  customer: Customer!  lines: [OrderLine!]!}type OrderLine {  id: ID!  productId: ID!  quantity: Int!}
+---
+
+**Pattern 9: Money & Currency - Store Custom Entity Prices**
+
+Use the `@Money()` decorator for monetary values:
+
+```typescript
+import { VendureEntity, Money, CurrencyCode, EntityId, ID } from '@vendure/core';
+import { Column, Entity } from 'typeorm';
+
+@Entity()
+class Quote extends VendureEntity {
+    @Column()
+    text: string;
+
+    @Money()
+    value: number; // Stored as integer (cents)
+
+    @Column('varchar')
+    currencyCode: CurrencyCode;
+
+    @EntityId()
+    orderId: ID;
+}
 ```
 
-**Example 5** (bash):
+---
+
+**Pattern 10: Install Vendure Dashboard**
+
+Add the Admin UI to your project:
+
 ```bash
 npm install @vendure/dashboard
 ```
+
+Configure in `vendure-config.ts`:
+
+```typescript
+import { VendureConfig } from '@vendure/core';
+import { DashboardPlugin } from '@vendure/dashboard';
+
+export const config: VendureConfig = {
+    plugins: [
+        DashboardPlugin.init({
+            route: 'admin',
+            port: 3002,
+        }),
+    ],
+};
+```
+
+## Key Concepts
+
+### Money & Currency
+- **Integer Storage**: All monetary values stored as integers (100 = $1.00)
+- **Why**: Avoids floating-point rounding errors
+- **GraphQL**: Uses custom `Money` scalar type
+- **Display**: Divide by 100 and format with `Intl.NumberFormat`
+- **Multi-Currency**: Set currencies at Channel level, prices stored per variant per currency
+
+### Order State Machine
+- **Default States**: AddingItems → ArrangingPayment → PaymentAuthorized → PaymentSettled → PartiallyShipped → Shipped → PartiallyDelivered → Delivered
+- **Customizable**: Define custom states and transitions via `OrderProcess`
+- **Interceptors**: Use `OrderInterceptor` to validate/prevent state transitions
+- **Processes**: Combine `defaultOrderProcess` with custom processes
+
+### Payment Flow
+- **Two-Step**: Authorize (checkout) → Settle (fulfillment)
+- **Single-Step**: Authorize + Settle at checkout
+- **Handler**: Implement `PaymentMethodHandler` for provider integration
+- **Methods**: Create PaymentMethod entities in Admin UI
+
+### Custom Fields
+- Add custom properties to entities (Product, Order, Customer, etc.)
+- Defined in `VendureConfig.customFields`
+- Automatically added to GraphQL schema
+- Supports relations to other entities
+
+### Plugins
+- **Structure**: `@VendurePlugin` decorator with imports, providers, configuration
+- **Lifecycle**: `onApplicationBootstrap`, `onApplicationShutdown` hooks
+- **Strategies**: Use `InjectableStrategy` pattern for extensibility
+- **Best Practice**: Always provide default implementations
+
+### Collections
+- **Purpose**: Organize products into categories/hierarchies
+- **Filters**: Determine which product variants belong to collection
+- **Built-in Filters**: Facet values, product name, variant name
+- **Custom Filters**: Create with `CollectionFilter` class
+- **Inheritance**: Child collections can inherit parent filters
 
 ## Reference Files
 
 This skill includes comprehensive documentation in `references/`:
 
-- **api.md** - Api documentation
-- **core_concepts.md** - Core Concepts documentation
-- **developer_guide.md** - Developer Guide documentation
-- **getting_started.md** - Getting Started documentation
-- **how_to.md** - How To documentation
-- **other.md** - Other documentation
-- **user_guide.md** - User Guide documentation
+### API Documentation (`api.md` - 800 pages)
+Complete TypeScript API reference covering:
+- **Core Entities**: Order, Product, Customer, Payment, Fulfillment
+- **Services**: OrderService, ProductService, CustomerService, AssetService
+- **Strategies**: PaymentMethodHandler, ShippingCalculator, TaxCalculationStrategy
+- **Plugins**: EmailPlugin, AssetServerPlugin, StripePlugin
+- **Admin UI**: Custom components, routes, alerts, navigation
+- **GraphQL**: Schema types, queries, mutations, subscriptions
 
-Use `view` to read specific reference files when detailed information is needed.
+### Core Concepts (`core_concepts.md` - 16 pages)
+Foundational architecture and patterns:
+- **Collections**: Organizing products with filters and hierarchies
+- **Money & Currency**: Integer storage, multi-currency support, formatting
+- **Images & Assets**: AssetServerPlugin, transformations, storage strategies
+- **Taxes**: Calculation, zones, categories, strategies
+- **Payment**: Authorization, settlement, custom handlers
+
+### Developer Guide (`developer_guide.md` - 48 pages)
+Building and extending Vendure:
+- **CLI**: Vendure CLI for scaffolding plugins, entities, services
+- **Security**: OWASP assessment, HardenPlugin, best practices
+- **File Uploads**: GraphQL multipart requests, custom upload mutations
+- **Custom Strategies**: Creating pluggable plugin implementations
+- **Migration**: V1 to V2 breaking changes, upgrade guide
+
+### Getting Started (`getting_started.md`)
+Quick start guides and initial setup:
+- Creating a new project with `@vendure/create`
+- Configuration basics
+- First plugin creation
+- Database setup
+
+### How-To Guides (`how_to.md`)
+Task-specific tutorials:
+- Adding custom fields
+- Creating custom payment integrations
+- Building Admin UI extensions
+- Implementing custom shipping calculators
+- Multi-tenant setups
+
+### Other Documentation (`other.md`)
+Miscellaneous topics:
+- Deployment strategies
+- Performance optimization
+- Testing approaches
+- Community resources
+
+### User Guide (`user_guide.md`)
+Admin UI usage and merchant workflows:
+- Managing products and variants
+- Processing orders
+- Customer management
+- Configuring shipping and taxes
+
+Use the `view` command to read specific reference files when detailed information is needed.
 
 ## Working with This Skill
 
 ### For Beginners
-Start with the getting_started or tutorials reference files for foundational concepts.
+1. **Start here**: Read `references/getting_started.md` for foundational setup
+2. **Understand core concepts**: Review `references/core_concepts.md` for Money, Orders, Payment flows
+3. **Build your first feature**: Follow Quick Reference patterns above
+4. **Explore examples**: Check `references/developer_guide.md` for real-world implementations
 
-### For Specific Features
-Use the appropriate category reference file (api, guides, etc.) for detailed information.
+### For Intermediate Users
+1. **Custom functionality**: Use `references/api.md` to find services and strategies
+2. **Plugin development**: Reference "Custom Strategies in Plugins" pattern above
+3. **Payment integration**: Follow Pattern 3 (Custom Payment Handler)
+4. **Email workflows**: Implement Pattern 4 (Email Event Handler)
 
-### For Code Examples
-The quick reference section above contains common patterns extracted from the official docs.
+### For Advanced Users
+1. **Architecture decisions**: Study strategy patterns in `references/developer_guide.md`
+2. **Performance**: Review caching, database optimization in `references/other.md`
+3. **Security**: Consult OWASP assessment in `references/developer_guide.md`
+4. **Complex state machines**: Custom OrderProcess, FulfillmentProcess implementations
+
+### Navigation Tips
+- **API lookup**: Search `references/api.md` for specific class/interface names
+- **Code examples**: All reference files include real examples from official docs
+- **Error troubleshooting**: Check pattern implementations for common gotchas
+- **Version compatibility**: Note version indicators (e.g., "v3.1.0") in examples
+
+## Common Tasks Quick Links
+
+| Task | Quick Reference Pattern | Reference File |
+|------|------------------------|----------------|
+| Start new project | Pattern 1 | getting_started.md |
+| Display prices | Pattern 2 | core_concepts.md (Money & Currency) |
+| Accept payments | Pattern 3 | core_concepts.md (Payment) |
+| Send emails | Pattern 4 | api.md (EmailPlugin) |
+| Create plugin | Pattern 5 | developer_guide.md (Custom Strategies) |
+| Upload files | Pattern 6 | developer_guide.md (Uploading Files) |
+| Validate orders | Pattern 7 | api.md (OrderInterceptor) |
+| Query products | Pattern 8 | api.md (GraphQL) |
+| Store prices | Pattern 9 | core_concepts.md (Money) |
+| Install Admin UI | Pattern 10 | getting_started.md |
 
 ## Resources
 
 ### references/
-Organized documentation extracted from official sources. These files contain:
-- Detailed explanations
-- Code examples with language annotations
-- Links to original documentation
-- Table of contents for quick navigation
+Organized documentation extracted from official Vendure docs (https://docs.vendure.io). These files contain:
+- **Detailed explanations** of concepts and architecture
+- **Real code examples** with TypeScript/GraphQL language annotations
+- **Links to original documentation** for latest updates
+- **Table of contents** for quick navigation within each category
 
 ### scripts/
-Add helper scripts here for common automation tasks.
+Add helper scripts here for common Vendure automation tasks:
+- Database seeding scripts
+- Migration utilities
+- Custom CLI commands
+- Build/deployment automation
 
 ### assets/
-Add templates, boilerplate, or example projects here.
+Add templates, boilerplate, or example projects here:
+- Plugin templates
+- Custom field configurations
+- Email templates (Handlebars)
+- Admin UI component examples
 
 ## Notes
 
-- This skill was automatically generated from official documentation
-- Reference files preserve the structure and examples from source docs
-- Code examples include language detection for better syntax highlighting
-- Quick reference patterns are extracted from common usage examples in the docs
+- This skill was automatically generated from official Vendure documentation (docs.vendure.io)
+- Reference files preserve structure and examples from source docs (as of October 2025)
+- Code examples include language detection for proper syntax highlighting
+- Quick reference patterns extracted from most common usage examples in the docs
+- All monetary values represented as integers (divide by 100 for display)
+- GraphQL is the primary API interface (Shop API for storefront, Admin API for management)
 
 ## Updating
 
 To refresh this skill with updated documentation:
-1. Re-run the scraper with the same configuration
-2. The skill will be rebuilt with the latest information
+1. Re-run the Skill Seeker scraper with the same Vendure configuration
+2. The skill will be rebuilt with the latest information from docs.vendure.io
+3. Enhancement can be re-applied to update Quick Reference with new patterns

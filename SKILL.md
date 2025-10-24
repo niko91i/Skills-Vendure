@@ -9,7 +9,7 @@ Comprehensive assistance with Vendure development, generated from official docum
 
 ## When to Use This Skill
 
-This skill should be triggered when:
+Trigger this skill when:
 - **Building headless e-commerce** applications with Node.js/TypeScript
 - **Working with GraphQL APIs** for products, orders, or customer management
 - **Implementing payment integrations** (Stripe, custom payment handlers)
@@ -331,7 +331,7 @@ class Quote extends VendureEntity {
 
 **Pattern 10: Install Vendure Dashboard**
 
-Add the Admin UI to your project:
+Add the Admin UI to the project:
 
 ```bash
 npm install @vendure/dashboard
@@ -461,19 +461,19 @@ Use the Read tool to access specific reference files when detailed information i
 
 ## Working with This Skill
 
-### For Beginners
+### Getting Started Workflow
 1. **Start here**: Read `references/getting_started.md` for foundational setup
 2. **Understand core concepts**: Review `references/core_concepts.md` for Money, Orders, Payment flows
-3. **Build your first feature**: Follow Quick Reference patterns above
+3. **Build first features**: Follow Quick Reference patterns above
 4. **Explore examples**: Check `references/developer_guide.md` for real-world implementations
 
-### For Intermediate Users
+### Intermediate Development Workflow
 1. **Custom functionality**: Use `references/api.md` to find services and strategies
 2. **Plugin development**: Reference "Custom Strategies in Plugins" pattern above
 3. **Payment integration**: Follow Pattern 3 (Custom Payment Handler)
 4. **Email workflows**: Implement Pattern 4 (Email Event Handler)
 
-### For Advanced Users
+### Advanced Architecture Workflow
 1. **Architecture decisions**: Study strategy patterns in `references/developer_guide.md`
 2. **Performance**: Review caching, database optimization in `references/other.md`
 3. **Security**: Consult OWASP assessment in `references/developer_guide.md`

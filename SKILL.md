@@ -406,6 +406,12 @@ Complete TypeScript API reference covering:
 - **Admin UI**: Custom components, routes, alerts, navigation
 - **GraphQL**: Schema types, queries, mutations, subscriptions
 
+**Finding API components**: Use grep to locate specific classes:
+```bash
+grep -n "^## PaymentMethodHandler" references/api.md
+grep -n "^## OrderService" references/api.md
+```
+
 ### Core Concepts (`core_concepts.md` - 16 pages)
 Foundational architecture and patterns:
 - **Collections**: Organizing products with filters and hierarchies
@@ -451,7 +457,7 @@ Admin UI usage and merchant workflows:
 - Customer management
 - Configuring shipping and taxes
 
-Use the `view` command to read specific reference files when detailed information is needed.
+Use the Read tool to access specific reference files when detailed information is needed.
 
 ## Working with This Skill
 

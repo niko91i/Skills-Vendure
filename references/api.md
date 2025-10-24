@@ -3744,9 +3744,9 @@ By default, the latest price will be used. Any price changes resulting from usin
 
 Defines the point of the order process at which the Order is set as "placed".
 
-Defines the strategy used to determine the active O
+Defines the strategy used to determine the active Order when performing Shop API operations such as `activeOrder` and `addItemToOrder`. The strategy uses the active Session as its foundation mechanism.
 
-*[Content truncated]*
+Since v1.9.0, you can define multiple strategies which will be checked in order, using the first one that returns an Order.
 
 **Examples:**
 
@@ -7205,9 +7205,13 @@ The graphQlType property may be one of String, Int, Float, Boolean, ID or list v
 
 The public (default = true) property is used to reveal or hide the property in the GraphQL API schema. If this property is set to false it's not accessible in the customMappings field but it's still getting parsed to the elasticsearch index.
 
-This config option defines custom mappings which are accessible when the "groupByProduct" or "groupBySKU" input options is set to true (Do not set both to true at the same time). In addition, custom variant mappings can be accessed by
+This config option defines custom mappings which are accessible when the "groupByProduct" or "groupBySKU" input options is set to true (Do not set both to true at the same time).
 
-*[Content truncated]*
+The `customProductMappings` enable adding custom data fields that become accessible through the SearchResult GraphQL type's `customProductMappings` field. These mappings receive product and variant array data via a `valueFn` function.
+
+In contrast, `customProductVariantMappings` are accessible when both 'groupByProduct' and 'groupBySKU' are set to `false`. These variant mappings are always available through the `customProductVariantMappings` field and also the generic `customMappings` field.
+
+Both mapping types support GraphQL types (`String`, `Int`, `Float`, `Boolean`, `ID`, or list variants like `[String!]`) and include a `public` property (default `true`) to control GraphQL schema visibility.
 
 **Examples:**
 
@@ -7549,9 +7553,26 @@ Here's a simplified example of how that would look:
 
 There are some concrete examples of this approach in the examples later on in this guide.
 
-The duration of a session is determined by the AuthOptions.sessionDuration config propert
+The duration of a session is determined by the `AuthOptions.sessionDuration` config property.
 
-*[Content truncated]*
+**sessionDuration Property:**
+
+**Type:** `string | number`
+**Default:** `'1y'` (one year)
+
+This property defines the time which must elapse from the last authenticated request after which the user must re-authenticate.
+
+The setting accepts two formats:
+- **Numeric values** represent milliseconds
+- **String values** follow the [zeit/ms](https://github.com/zeit/ms.js) format
+
+**Supported examples:**
+- `60` (milliseconds)
+- `'2 days'`
+- `'10h'` (hours)
+- `'7d'` (days)
+
+Session duration works alongside complementary authentication options like `sessionCacheStrategy` (manages session caching), `sessionCacheTTL` (cache freshness timing, default: 300 seconds), and `tokenMethod` (token delivery via cookie or bearer token).
 
 **Examples:**
 
@@ -8609,9 +8630,26 @@ The function which contains the promotion calculation logic. Should resolve to a
 
 The function which contains the promotion calculation logic. Should resolve to a number which represents the amount by which to discount the Order, i.e. the number should be negative.
 
-The function which contains the promotion calculation logic. Should resolve to a number which represents the amount by
+The function which contains the promotion calculation logic. Should resolve to a number which represents the amount by which to discount.
 
-*[Content truncated]*
+**Promotion Action Types:**
+
+- **PromotionItemAction**: Applies discounts to individual OrderLines on a per-item basis
+- **PromotionLineAction**: Similar to PromotionItemAction but applies regardless of OrderLine quantity
+- **PromotionOrderAction**: Applies discounts to the entire Order total
+- **PromotionShippingAction**: Applies discounts specifically to shipping costs
+
+**Execution Functions:**
+
+Each action type requires an `execute` function:
+
+- **PromotionItemActionConfig**: Receives OrderLine, returns negative number for per-item discount
+- **PromotionOrderActionConfig**: Receives Order object, returns negative number for order-level discount
+- **PromotionShippingActionConfig**: Receives ShippingLine and Order, returns negative number for shipping discount
+
+All execute functions receive `ctx` (RequestContext), `args` (configuration arguments), `state` (condition results), and the `promotion` entity itself.
+
+The `PromotionAction` class includes a `priorityValue` property (default: 0) used to determine application order when multiple promotions affect the same order.
 
 **Examples:**
 
@@ -9574,9 +9612,41 @@ The following helper functions are available for use in email templates:
 
 The defaultEmailHandlers array defines the default handler such as for handling new account registration, order confirmation, password reset etc. These defaults can be extended by adding custom templates for languages other than the default, or even completely new types of emails which respond to any of the available VendureEvents.
 
-A good way to learn how to create your own email handler is to take a loo
+A good way to learn how to create your own email handler is to take a look at the source code of the default handlers, which are located in the `default-email-handlers.ts` file.
 
-*[Content truncated]*
+**Default Email Handlers:**
+
+The `defaultEmailHandlers` array provides built-in handlers for standard Vendure events:
+- Order confirmation
+- New customer email address verification
+- Password reset request
+- Email address change request
+
+**Creating Custom Handlers:**
+
+Custom handlers follow the same structure as the defaults, allowing developers to respond to any available VendureEvents.
+
+**Modifying Default Handlers:**
+
+Rather than replacing all defaults, you can import individual handlers and customize them:
+
+```typescript
+import {
+  orderConfirmationHandler,
+  emailVerificationHandler,
+  passwordResetHandler,
+  emailAddressChangeHandler,
+} from '@vendure/email-plugin';
+```
+
+**Available Customization Methods:**
+
+Individual handlers support these modifications:
+- **setSubject()**: Set a new subject line (e.g., for order confirmation)
+- **loadData()**: Fetch additional data via injected services
+- **setTemplateVars()**: Define variables passed to email templates
+
+You can chain these methods for sophisticated customizations, such as loading customer data before rendering password reset emails, then pass the modified handlers to `EmailPlugin.init()`.
 
 **Examples:**
 
@@ -14149,9 +14219,26 @@ The function which contains the promotion calculation logic. Should resolve to a
 
 The function which contains the promotion calculation logic. Should resolve to a number which represents the amount by which to discount the Order, i.e. the number should be negative.
 
-The function which contains the promotion calculation logic. Should resolve to a number which represents the amount by
+The function which contains the promotion calculation logic. Should resolve to a number which represents the amount by which to discount.
 
-*[Content truncated]*
+**Promotion Action Types:**
+
+- **PromotionItemAction**: Applies discounts to individual OrderLines on a per-item basis
+- **PromotionLineAction**: Similar to PromotionItemAction but applies regardless of OrderLine quantity
+- **PromotionOrderAction**: Applies discounts to the entire Order total
+- **PromotionShippingAction**: Applies discounts specifically to shipping costs
+
+**Execution Functions:**
+
+Each action type requires an `execute` function:
+
+- **PromotionItemActionConfig**: Receives OrderLine, returns negative number for per-item discount
+- **PromotionOrderActionConfig**: Receives Order object, returns negative number for order-level discount
+- **PromotionShippingActionConfig**: Receives ShippingLine and Order, returns negative number for shipping discount
+
+All execute functions receive `ctx` (RequestContext), `args` (configuration arguments), `state` (condition results), and the `promotion` entity itself.
+
+The `PromotionAction` class includes a `priorityValue` property (default: 0) used to determine application order when multiple promotions affect the same order.
 
 **Examples:**
 
@@ -16358,9 +16445,41 @@ The following helper functions are available for use in email templates:
 
 The defaultEmailHandlers array defines the default handler such as for handling new account registration, order confirmation, password reset etc. These defaults can be extended by adding custom templates for languages other than the default, or even completely new types of emails which respond to any of the available VendureEvents.
 
-A good way to learn how to create your own email handler is to take a loo
+A good way to learn how to create your own email handler is to take a look at the source code of the default handlers, which are located in the `default-email-handlers.ts` file.
 
-*[Content truncated]*
+**Default Email Handlers:**
+
+The `defaultEmailHandlers` array provides built-in handlers for standard Vendure events:
+- Order confirmation
+- New customer email address verification
+- Password reset request
+- Email address change request
+
+**Creating Custom Handlers:**
+
+Custom handlers follow the same structure as the defaults, allowing developers to respond to any available VendureEvents.
+
+**Modifying Default Handlers:**
+
+Rather than replacing all defaults, you can import individual handlers and customize them:
+
+```typescript
+import {
+  orderConfirmationHandler,
+  emailVerificationHandler,
+  passwordResetHandler,
+  emailAddressChangeHandler,
+} from '@vendure/email-plugin';
+```
+
+**Available Customization Methods:**
+
+Individual handlers support these modifications:
+- **setSubject()**: Set a new subject line (e.g., for order confirmation)
+- **loadData()**: Fetch additional data via injected services
+- **setTemplateVars()**: Define variables passed to email templates
+
+You can chain these methods for sophisticated customizations, such as loading customer data before rendering password reset emails, then pass the modified handlers to `EmailPlugin.init()`.
 
 **Examples:**
 
@@ -25384,9 +25503,9 @@ By default, the latest price will be used. Any price changes resulting from usin
 
 Defines the point of the order process at which the Order is set as "placed".
 
-Defines the strategy used to determine the active O
+Defines the strategy used to determine the active Order when performing Shop API operations such as `activeOrder` and `addItemToOrder`. The strategy uses the active Session as its foundation mechanism.
 
-*[Content truncated]*
+Since v1.9.0, you can define multiple strategies which will be checked in order, using the first one that returns an Order.
 
 **Examples:**
 

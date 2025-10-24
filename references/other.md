@@ -63,9 +63,32 @@ You should then see a card representing this service in the main area of the das
 
 In order to persist the uploaded product images, we need to create a volume. Click the "new" button and select "Volume". Attach it to the "vendure-server" service and set the mount path to /vendure-assets.
 
-Click on the "vendure-server" service and go to the "Variables" tab. This is where we will set up the environment variables which are used in our Vendure
+Click on the "vendure-server" service and go to the "Variables" tab. This is where we will set up the environment variables which are used in our Vendure configuration.
 
-*[Content truncated]*
+Add the following variables via the raw editor in Railway's Variables tab:
+
+```
+DB_NAME=${{Postgres.PGDATABASE}}
+DB_USERNAME=${{Postgres.PGUSER}}
+DB_PASSWORD=${{Postgres.PGPASSWORD}}
+DB_HOST=${{Postgres.PGHOST}}
+DB_PORT=${{Postgres.PGPORT}}
+ASSET_UPLOAD_DIR=/vendure-assets
+COOKIE_SECRET=<add some random characters>
+SUPERADMIN_USERNAME=superadmin
+SUPERADMIN_PASSWORD=<create some strong password>
+```
+
+**Important:** The variables starting with `${{Postgres...}}` assume that your database service is called 'Postgres'. If you have named it differently, then you'll need to change these variables accordingly.
+
+The `ASSET_UPLOAD_DIR` mounts to the volume created at `/vendure-assets` for persisting uploaded product images.
+
+You must provide custom values for `COOKIE_SECRET` and `SUPERADMIN_PASSWORD` rather than using placeholder text.
+
+**Additional Steps:**
+- Set the custom start command to `node ./dist/index.js`
+- Generate a temporary domain in the Networking section
+- Ensure the volume is created and attached for asset persistence
 
 **Examples:**
 
@@ -596,9 +619,58 @@ Depending on your repo, App Platform may suggest more than one app: in this scre
 
 We need to edit the details of the server app. Click the "Edit" button and set the following:
 
-At this point you can also click the "Edit Plan" button to select the resource all
+At this point you can also click the "Edit Plan" button to select the resource allocation. For testing, the smallest Basic server (512MB, 1vCPU) is fine. This can also be changed later.
 
-*[Content truncated]*
+**Add a Database:**
+
+After configuring the server app, add a PostgreSQL database by clicking "Add Resource," selecting Database, and accepting default Postgres settings. The system will "Create and Attach" the database to your server app automatically.
+
+**Set up Environment Variables:**
+
+Configure these at the Global level using the bulk editor:
+
+```
+DB_NAME=${db.DATABASE}
+DB_USERNAME=${db.USERNAME}
+DB_PASSWORD=${db.PASSWORD}
+DB_HOST=${db.HOSTNAME}
+DB_PORT=${db.PORT}
+DB_CA_CERT=${db.CA_CERT}
+COOKIE_SECRET=<add some random characters>
+SUPERADMIN_USERNAME=superadmin
+SUPERADMIN_PASSWORD=<create some strong password>
+MINIO_ACCESS_KEY=<use the key generated earlier>
+MINIO_SECRET_KEY=<use the secret generated earlier>
+MINIO_ENDPOINT=<use the endpoint of your spaces bucket>
+```
+
+**Note:** The `${db...}` values are auto-populated. For self-signed SSL issues, add `NODE_TLS_REJECT_UNAUTHORIZED=0`.
+
+**Create the Worker Resource:**
+
+From your app dashboard, click "Create," select "Create Resources From Source Code," choose your repo, then configure:
+
+- **Resource Name:** "vendure-worker"
+- **Resource Type:** Worker
+- **Run Command:** `node ./dist/index-worker.js`
+
+No additional environment variables needed—the worker shares Global variables.
+
+**Configure HTTP Routes:**
+
+Enable HTTP Request Routes in Settings → vendure-server component:
+
+- `/admin`
+- `/assets`
+- `/health`
+- `/admin-api`
+- `/shop-api`
+
+**Check "Preserve Path Prefix"** for each route.
+
+**Testing:**
+
+Once deployed, append `/admin` to your app URL and authenticate using your configured superadmin credentials.
 
 **Examples:**
 
@@ -736,9 +808,28 @@ The setup for containerizing Vendure is already done: This file and this file wi
 
 The example repository contains GitHub action definitions to automatically deploy your app to Cloud Run when you push to the main branch.
 
-Follow these steps to create a service account 
+Follow these steps to create a service account and configure GitHub Actions for automated deployment:
 
-*[Content truncated]*
+**Service Account Setup:**
+
+The complete service account creation steps and GitHub Actions configuration are available in the [Pinelab studio repository](https://github.com/Pinelab-studio/vendure-google-cloud-run-starter/blob/main/README.md), which includes:
+
+- Creating a Google Cloud service account with necessary permissions
+- Setting repository secrets in GitHub for authentication
+- Configuring automated deployment workflows
+
+**Keep Alive:**
+
+To prevent cold starts, use Google Cloud Scheduler to poll your Cloud Run instance periodically. The build script in the example repository contains the commands needed to configure this keep-alive mechanism.
+
+**Deployment Process:**
+
+1. Push to the `main` branch triggers GitHub Actions
+2. Actions build and deploy to Google Cloud Run automatically
+3. Service account credentials handle authentication
+4. Cloud Scheduler keeps instances warm
+
+For detailed gcloud commands and workflow YAML configurations, refer to the example repository's README and build scripts.
 
 ---
 
@@ -824,9 +915,24 @@ For example, if your custom field specifies a pattern property, the Dashboard wi
 
 Always import UI components from the @vendure/dashboard package rather than creating custom inputs or buttons. This ensures your components follow the dashboard's design system and remain consistent with future updates.
 
-The unified custom form elements system gives you complete flexibility in how data is presented and edited in th
+The unified custom form elements system gives you complete flexibility in how data is presented and edited in the dashboard while maintaining seamless integration with the underlying form architecture and visual design system.
 
-*[Content truncated]*
+**Key Best Practices:**
+
+1. **Import from Dashboard Package**: Always use Shadcn UI components from `@vendure/dashboard` to ensure design consistency
+2. **React Hook Form Integration**: Properly handle form events by calling `onChange` and `onBlur` at appropriate times
+3. **Access Form Context**: Use `useFormContext()` to retrieve field state and validation information
+4. **Validation Handling**: The dashboard automatically manages standard validation (pattern matching, required fields)
+5. **Visual Feedback**: Use design tokens like `text-destructive` and `text-muted-foreground` for consistent messaging
+6. **Disabled States**: Always respect the `disabled` prop to prevent user interaction when appropriate
+
+**Advanced Integration:**
+
+- **Nested Forms**: Use `handleNestedFormSubmit` utility to prevent event bubbling when embedding forms within detail pages
+- **Relation Selectors**: Built-in components feature real-time search, infinite scroll pagination, and customizable GraphQL queries
+- **Component Registration**: Register through `defineDashboardExtension` with targeted `pageId`, `blockId`, and `field` properties
+
+Development mode helps discover required IDs by hovering over form elements to view their identifiers for proper customization targeting.
 
 **Examples:**
 
@@ -1053,9 +1159,38 @@ In Postgres, you can execute:
 
 and you should expect to see UTC or Etc/UTC.
 
-When deploying your Vendure application behind a reverse proxy (usually the case with most hosting services), consider configuring Express's trust proxy setting. This allows you to retrieve the original IP address from the X-Forwarded-For
+When deploying your Vendure application behind a reverse proxy (usually the case with most hosting services), consider configuring Express's trust proxy setting. This allows you to retrieve the original IP address from the X-Forwarded-For header, which proxies use to forward the client's IP address.
 
-*[Content truncated]*
+Configure trust proxy in your VendureConfig:
+
+```typescript
+import { VendureConfig } from '@vendure/core';
+
+export const config: VendureConfig = {
+    apiOptions: {
+        trustProxy: 1, // Trust the first proxy in front of your app
+    },
+};
+```
+
+For detailed guidance on proxy configuration, refer to the [Express proxy documentation](https://expressjs.com/en/guide/behind-proxies.html).
+
+**Security Considerations:**
+
+The production guide directs developers to review the comprehensive **Security** section within the Developer Guide for thorough information on protecting Vendure applications.
+
+**Complete Production Configuration Summary:**
+
+A production-ready Vendure setup should incorporate:
+
+1. **Environment Variables**: Store sensitive data and context-dependent settings as environment variables
+2. **Superadmin Credentials**: Replace default credentials with strong, environment-variable-managed passwords
+3. **HardenPlugin**: Install and configure for schema protection and query complexity limits
+4. **ID Strategy**: Consider UUID-based IDs instead of sequential integers to prevent information leakage
+5. **Database Timezone**: Verify MySQL/MariaDB and PostgreSQL use UTC to prevent date/time offset issues
+6. **Trust Proxy**: Configure when behind reverse proxies for accurate client IP detection
+
+Each configuration element addresses specific security or operational concerns in production environments.
 
 **Examples:**
 
@@ -1133,9 +1268,25 @@ The superadmin password was generated for you by the template, and can be found 
 
 Congratulations on deploying your Vendure server!
 
-Now that you have a basic Vendure server up and running, you can explore some of the other features offered by Northflank that you might need for a full production 
+Now that you have a basic Vendure server up and running, you can explore some of the other features offered by Northflank that you might need for a full production deployment:
 
-*[Content truncated]*
+**Next Steps for Production:**
+
+1. **Health Checks**: Configure health checks to ensure any container crashes are rapidly detected and restarted. Refer to Vendure's health check documentation for implementation details.
+
+2. **Redis Integration**: Set up a Redis instance to enable:
+   - BullMQJobQueuePlugin for superior job queue performance
+   - Redis-based session caching to handle multi-instance deployments
+
+3. **Horizontal Scaling**: Once Redis and health checks are in place, you can safely start to scale your server instances to handle more traffic and support horizontal expansion as demand grows.
+
+4. **Custom Domain**: Add a custom domain using Northflank's powerful DNS management system for professional branding.
+
+5. **Infrastructure Monitoring**: Establish infrastructure alerts to be notified when any of your containers crash or experience load spikes, ensuring rapid response to issues.
+
+**Key Takeaway:**
+
+Production readiness involves layering capabilities progressively—starting with crash detection, adding caching support, enabling scaling, then implementing monitoring and custom domains for a fully resilient e-commerce platform.
 
 **Examples:**
 
@@ -1430,9 +1581,51 @@ If you have not already set up payment, you will be prompted to enter credit car
 
 Next we need to set up the environment variables which will be used by both the server and worker. Click the "Env Groups" tab and then click the "New Environment Group" button.
 
-Name the group "vendure configuration" and add the following variables. The database variables can be found by navigat
+Name the group "vendure configuration" and add the following variables. The database variables can be found by navigating to your database service's "Info" tab under "Connections":
 
-*[Content truncated]*
+**Database Configuration:**
+
+Retrieve values from the database service's "Info" tab:
+
+```
+DB_NAME=<database name>
+DB_USERNAME=<database username>
+DB_PASSWORD=<database password>
+DB_HOST=<database hostname>
+DB_PORT=<database port>
+```
+
+**Additional Required Variables:**
+
+```
+ASSET_UPLOAD_DIR=/vendure-assets
+COOKIE_SECRET=<add some random characters>
+SUPERADMIN_USERNAME=superadmin
+SUPERADMIN_PASSWORD=<create some strong password>
+```
+
+**Create the Worker Service:**
+
+The worker process handles background tasks and requires:
+
+- **Name:** "vendure-worker"
+- **Runtime:** Node.js with these commands:
+  - Build: `yarn; yarn build` or `npm install; npm run build`
+  - Start: `node ./dist/index-worker.js`
+- **Instance Type:** Starter size minimum
+- **Docker Command:** `node ./dist/index-worker.js` (if using Dockerfile)
+
+Link the "vendure configuration" environment group to the worker via its Environment tab.
+
+**Key Deployment Steps:**
+
+1. Create PostgreSQL database on Render
+2. Deploy Web Service from Git repository
+3. Add persistent disk volume at `/vendure-assets` for file storage
+4. Set Health Check Path to `/health`
+5. Create Background Worker service
+6. Link environment variables to both services
+7. Access Admin UI at the temporary domain with `/admin` appended
 
 **Examples:**
 

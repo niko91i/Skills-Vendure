@@ -40,9 +40,9 @@ Here's an example of a collection filter which filters by SKU:
 
 In the apply() method, the product variant entity is aliased as 'productVariant'.
 
-This custom f
+This custom filter must then be registered in your VendureConfig to become available in the Admin UI.
 
-*[Content truncated]*
+The `apply()` method receives a TypeORM SelectQueryBuilder and uses `.andWhere()` for filtering logic. Database-specific syntax handling ensures compatibility across PostgreSQL and other databases. The `args` object defines user-configurable parameters exposed in the admin interface.
 
 **Examples:**
 
@@ -102,9 +102,42 @@ Here's how the Money scalar is used in the ShippingLine type:
 
 If you are defining custom GraphQL types, or adding fields to existing types (see the Extending the GraphQL API doc), then you should also use the Money scalar for any monetary values.
 
-When defining new database entities, if you need to store a monet
+When defining new database entities, if you need to store a monetary value, then rather than using the TypeORM `@Column()` decorator, you should use Vendure's `@Money()` decorator. This ensures that Vendure correctly persists amounts based on the configured MoneyStrategy.
 
-*[Content truncated]*
+Here's a complete entity example:
+
+```typescript
+import { DeepPartial } from '@vendure/common/lib/shared-types';
+import { VendureEntity, Order, EntityId, Money, CurrencyCode, ID } from '@vendure/core';
+import { Column, Entity, ManyToOne } from 'typeorm';
+
+@Entity()
+class Quote extends VendureEntity {
+    constructor(input?: DeepPartial<Quote>) {
+        super(input);
+    }
+
+    @ManyToOne(type => Order)
+    order: Order;
+
+    @EntityId()
+    orderId: ID;
+
+    @Column()
+    text: string;
+
+    @Money()
+    value: number;
+
+    @Column('varchar')
+    currencyCode: CurrencyCode;
+
+    @Column()
+    approved: boolean;
+}
+```
+
+**Recommendation:** Whenever you store a monetary value, it's a good idea to also explicitly store the currency code too. This makes it possible to support multiple currencies and correctly format the amount when displaying the value.
 
 **Examples:**
 
@@ -236,9 +269,17 @@ One or more Payments are created by executing the addPaymentToOrder mutation. Th
 
 The metadata field is used to store the specific data required by the payment provider. E.g. some providers have a client-side part which begins the transaction and returns a token which must then be verified on the server side.
 
-The metadata field is required
+The metadata field is required, so if your payment provider does not require any additional data, you can simply pass an empty object.
 
-*[Content truncated]*
+Within metadata, certain fields receive special treatment. Data placed in a "public" subfield becomes accessible through the Shop API, while other metadata remains restricted to Admin API access only.
+
+**Payment Flow Types:**
+
+**Single-Step Workflow:** When `createPayment()` returns a state of `'Settled'`, the authorization and capture occur simultaneously. The payment is immediately captured upon checkout completion.
+
+**Two-Step Workflow:** When `createPayment()` returns a state of `'Authorized'`, settlement occurs later—potentially during fulfillment or upon payment-on-delivery confirmation. This approach separates authorization from fund capture.
+
+The `addPaymentToOrder` mutation triggers the PaymentMethodHandler's `createPayment()` function, which returns payment details used to create a Payment entity. When the payment amount matches the order total, the order transitions to either `PaymentAuthorized` or `PaymentSettled` state, completing the checkout flow.
 
 **Examples:**
 
@@ -309,9 +350,35 @@ In the example above, the administrator Sam Bailey has two roles assigned: "Orde
 
 There are 2 special roles which are created by default and cannot be changed:
 
-All other roles can be user-defined. Here's an example of an "Inventory Manager" role being defined in the Admi
+1. **SuperAdmin**: Possesses all permissions; cannot be edited or deleted. Assigned to the first administrator at server startup.
+2. **Customer**: Automatically assigned to all registered customers.
 
-*[Content truncated]*
+All other roles are customizable and can be defined in the Admin UI to provide fine-grained access control.
+
+**Native Authentication** uses username/email and password via the `NativeAuthenticationStrategy`. This provides a standard `login` mutation available in both Shop and Admin APIs.
+
+**External Authentication** enables custom `AuthenticationStrategy` implementations for alternatives including:
+- Social logins (Facebook, Google, GitHub)
+- Single Sign-On providers (Keycloak, Auth0)
+- Alternative authentication factors (SMS, TOTP)
+
+Strategies are configured via `VendureConfig.authOptions`:
+
+```typescript
+authOptions: {
+  shopAuthenticationStrategy: [
+    new NativeAuthenticationStrategy(),
+    new FacebookAuthenticationStrategy(),
+    new GoogleAuthenticationStrategy(),
+  ],
+  adminAuthenticationStrategy: [
+    new NativeAuthenticationStrategy(),
+    new KeycloakAuthenticationStrategy(),
+  ],
+}
+```
+
+This demonstrates separating authentication methods between customer-facing (shop) and administrator interfaces.
 
 **Examples:**
 
@@ -394,9 +461,23 @@ When you have products assigned to multiple channels, updates to the price of a 
 
 If an administrator of the UK channel changes the USD price to $20, the price in the Default channel will remain at $30. This is the default behavior, and is controlled by the ProductVariantPriceUpdateStrategy.
 
-If you want to keep prices synchronized across all c
+If you want to keep prices synchronized across all channels, you can set the `syncPricesAcrossChannels` property of the DefaultProductVariantPriceUpdateStrategy to `true`. This ensures that modifying a product variant's price in one channel will update matching currency prices across all other channels.
 
-*[Content truncated]*
+**Configuration Example:**
+
+```typescript
+import { DefaultProductVariantPriceUpdateStrategy, VendureConfig } from '@vendure/core';
+
+export const config: VendureConfig = {
+    // ...
+    productVariantPriceUpdateStrategy: new DefaultProductVariantPriceUpdateStrategy({
+        syncPricesAcrossChannels: true,
+    }),
+    // ...
+};
+```
+
+For more complex scenarios—such as one-way synchronization where a default channel serves as the master price source—developers can implement custom logic by creating a specialized `ProductVariantPriceUpdateStrategy` with tailored behavior.
 
 **Examples:**
 
@@ -509,9 +590,114 @@ This can be done by creating a custom version of the default process using the c
 
 Sometimes you might need to extend things beyond what is provided by the default Order process to better match your business needs. This is done by defining one or more OrderProcess objects and passing them to the OrderOptions.process config property.
 
-Let's say your company can only sell to customers with a valid EU tax ID. We'll assume that you've already used a custom field to store that
+Let's say your company can only sell to customers with a valid EU tax ID. We'll assume that you've already used a custom field to store that code on the Customer entity.
 
-*[Content truncated]*
+**Adding a New State:**
+
+The proposed state flow changes from:
+```
+AddingItems -> ArrangingPayment
+```
+
+To:
+```
+AddingItems -> ValidatingCustomer -> ArrangingPayment
+```
+
+**Implementation Example:**
+
+```typescript
+import { OrderProcess } from '@vendure/core';
+
+export const customerValidationProcess: OrderProcess<'ValidatingCustomer'> = {
+  transitions: {
+    AddingItems: {
+      to: ['ValidatingCustomer'],
+      mergeStrategy: 'replace',
+    },
+    ValidatingCustomer: {
+      to: ['ArrangingPayment', 'AddingItems'],
+    },
+  },
+};
+```
+
+This configuration is then added to your VendureConfig alongside the default process to preserve existing states.
+
+**Intercepting State Transitions:**
+
+Use the `onTransitionStart` hook to enforce validation logic and prevent invalid transitions:
+
+```typescript
+import { OrderProcess } from '@vendure/core';
+import { TaxIdService } from './services/tax-id.service';
+
+let taxIdService: TaxIdService;
+
+const customerValidationProcess: OrderProcess<'ValidatingCustomer'> = {
+  transitions: {
+    AddingItems: {
+      to: ['ValidatingCustomer'],
+      mergeStrategy: 'replace',
+    },
+    ValidatingCustomer: {
+      to: ['ArrangingPayment', 'AddingItems'],
+    },
+  },
+  init(injector) {
+    taxIdService = injector.get(TaxIdService);
+  },
+  async onTransitionStart(fromState, toState, data) {
+    if (fromState === 'ValidatingCustomer' && toState === 'ArrangingPayment') {
+      const isValid = await taxIdService.verifyTaxId(data.order.customer);
+      if (!isValid) {
+        return `The tax ID is not valid`;
+      }
+    }
+  },
+};
+```
+
+**Responding to State Transitions:**
+
+The `onTransitionEnd` hook executes after successful state transitions. Here's an example creating referrals:
+
+```typescript
+import { OrderProcess, OrderState } from '@vendure/core';
+import { ReferralService } from '../service/referral.service';
+
+let referralService: ReferralService;
+
+export const referralOrderProcess: OrderProcess<OrderState> = {
+    init: (injector) => {
+        referralService = injector.get(ReferralService);
+    },
+    onTransitionEnd: async (fromState, toState, data) => {
+        const { order, ctx } = data;
+        if (toState === 'PaymentSettled') {
+            if (order.customFields.referralCode) {
+                await referralService.createReferralForOrder(ctx, order);
+            }
+        }
+    },
+};
+```
+
+**Important:** When modifying orders within `onTransitionEnd`, always mutate the order object directly rather than calling external services, as changes must be reflected in the persisted object.
+
+**TypeScript Type Declarations:**
+
+Declare custom states using declaration merging:
+
+```typescript
+import { CustomOrderStates } from '@vendure/core';
+
+declare module '@vendure/core' {
+  interface CustomOrderStates {
+    ValidatingCustomer: never;
+  }
+}
+```
 
 **Examples:**
 
@@ -621,9 +807,9 @@ Here's an example of a collection filter which filters by SKU:
 
 In the apply() method, the product variant entity is aliased as 'productVariant'.
 
-This custom f
+This custom filter must then be registered in your VendureConfig to become available in the Admin UI.
 
-*[Content truncated]*
+The `apply()` method receives a TypeORM SelectQueryBuilder and uses `.andWhere()` for filtering logic. Database-specific syntax handling ensures compatibility across PostgreSQL and other databases. The `args` object defines user-configurable parameters exposed in the admin interface.
 
 **Examples:**
 
@@ -680,8 +866,27 @@ The saleable value is what determines whether the customer is able to add a vari
 
 Allocation mean we are setting stock aside because it has been purchased but not yet shipped. It prevents us from selling more of a particular item than we are able to deliver.
 
+By default, stock gets allocated to an order once the order transitions to the `PaymentAuthorized` or `PaymentSettled` state. Organizations can customize this timing through a custom `StockAllocationStrategy` to match their business requirements.
 
-*[Content truncated]*
+When using the default fulfillment process, allocated inventory converts to sales and decreases the `stockOnHand` value upon fulfillment creation.
+
+**Back Orders:**
+
+The system permits negative out-of-stock thresholds, enabling organizations to accept orders for items temporarily unavailable. This practice, known as back-ordering, allows sales to continue during stock shortages when replenishment is predictable.
+
+After checkout completion, variant quantities are marked as allocated. Upon fulfillment creation, these allocations become sales and adjust `stockOnHand` accordingly. Importantly, fulfillments require sufficient physical stock to proceed.
+
+**Stock Movements:**
+
+The `StockMovement` entity tracks inventory changes through five concrete implementations:
+
+- **Allocation**: Reserves stock for orders; reduces saleable inventory
+- **Sale**: Converts allocation to fulfilled inventory; decreases both allocated and hand stock
+- **Cancellation**: Returns fulfilled items; restores `stockOnHand`
+- **Release**: Cancels pre-fulfillment allocations; removes allocated stock
+- **StockAdjustment**: General adjustments to `stockOnHand` for manual corrections
+
+These movements provide complete audit trails queryable via `ProductVariant.stockMovements`.
 
 **Examples:**
 
@@ -776,11 +981,25 @@ By default, Vendure uses a manual fulfillment handler, which requires the Admini
 
 Like Orders, Fulfillments are governed by a finite state machine and by default, a Fulfillment can be in one of the following states:
 
+- `Pending` - Initial fulfillment creation
+- `Shipped` - Fulfillment dispatched
+- `Delivered` - Item received by customer
+- `Cancelled` - Fulfillment revoked
+
 These states cover the typical workflow for fulfilling orders. However, it is possible to customize the fulfillment workflow by defining a FulfillmentProcess and passing it to your VendureConfig:
 
-For a more detailed look at how cus
+```typescript
+import { FulfillmentProcess, VendureConfig } from '@vendure/core';
+import { myCustomFulfillmentProcess } from './my-custom-fulfillment-process';
 
-*[Content truncated]*
+export const config: VendureConfig = {
+  shippingOptions: {
+    process: [myCustomFulfillmentProcess],
+  },
+};
+```
+
+For a more detailed look at how custom processes operate, see the comprehensive guide on custom order processes which provides deeper insights into implementing state machine customizations within Vendure's architecture.
 
 **Examples:**
 
@@ -859,9 +1078,52 @@ In this scenario, we would have to repeat the logic for checking the Order conte
 
 Note the use of PromotionItemAction to get a reference to the OrderLine as opposed to the Order.
 
-Instead, we can say that the PromotionAct
+Instead, we can say that the PromotionAction depends on the PromotionCondition to avoid repeating validation logic in multiple places.
 
-*[Content truncated]*
+**Configuration Example:**
+
+To implement dependencies, specify the condition in the action's configuration:
+
+```typescript
+export const buy1Get1FreeAction = new PromotionItemAction({
+    code: 'buy_1_get_1_free',
+    description: [{
+        languageCode: LanguageCode.en,
+        value: 'Buy 1, get 1 free',
+    }],
+    args: {},
+    conditions: [buyXGetYFreeCondition],
+    execute(ctx, orderLine, args, state) {
+        const freeItemIds = state.buy_x_get_y_free.freeItemIds;
+        if (idsContainsItem(freeItemIds, orderLine)) {
+            const unitPrice = ctx.channel.pricesIncludeTax ?
+                orderLine.unitPriceWithTax : orderLine.unitPrice;
+            return -unitPrice;
+        }
+        return 0;
+    },
+});
+```
+
+**State Object Passing:**
+
+The dependent condition returns a state object instead of a boolean:
+
+```typescript
+export const buyXGetYFreeCondition = new PromotionCondition({
+    code: 'buy_x_get_y_free',
+    // ... configuration
+    async check(ctx, order, args) {
+        // validation logic
+        if (freeItemIds.length === 0) {
+            return false;
+        }
+        return {freeItemIds}; // State object
+    },
+});
+```
+
+This state object is passed to dependent actions as the final argument, enabling seamless data sharing.
 
 **Examples:**
 

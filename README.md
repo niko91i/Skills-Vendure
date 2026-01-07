@@ -29,7 +29,7 @@ Authentication helper that obtains JWT tokens and provides curl examples.
 
 #### `query.sh`
 
-Powerful GraphQL query executor with history, replay, and diff capabilities.
+Powerful GraphQL query executor with history, replay, diff, assertions, and filtering capabilities.
 
 ```bash
 ./query.sh '{ me { id } }'                    # Simple query
@@ -41,7 +41,44 @@ Powerful GraphQL query executor with history, replay, and diff capabilities.
 ./query.sh --shop '{ products { items { name } } }'  # Shop API
 ```
 
-See `SKILL.md` for complete documentation of all options.
+**Why `query.sh` is powerful for AI-assisted development:**
+
+This script is designed to be used iteratively by an LLM (like Claude) to build complex workflows. Key features:
+
+- **`--assert`** - Validate conditions before proceeding (e.g., check if product exists)
+- **`--jq`** - Extract specific values from responses for use in next queries
+- **`--quiet`** - Clean output for variable capture
+- **`--no-fail`** - Continue workflow even if a query fails
+
+**Example: AI-driven conditional workflow**
+
+```bash
+# 1. Check if products exist
+./query.sh '{ products { totalItems } }' --assert '.data.products.totalItems > 0'
+
+# 2. Get first product ID
+PRODUCT_ID=$(./query.sh -q '{ products { items { id } } }' --jq '.data.products.items[0].id')
+
+# 3. Use the ID in next query
+./query.sh --vars "{\"id\": $PRODUCT_ID}" '
+  query($id: ID!) {
+    product(id: $id) { name variants { sku } }
+  }
+'
+
+# 4. Conditional logic based on results
+./query.sh '{ orders { totalItems } }' --assert '.data.orders.totalItems > 0' \
+  && echo "Orders found, processing..." \
+  || echo "No orders, skipping..."
+```
+
+An LLM can chain multiple `query.sh` calls to:
+- Explore the data model dynamically
+- Make decisions based on query results
+- Build complex multi-step operations
+- Validate state before mutations
+
+See `SKILL.md` for complete documentation of all 25+ options.
 
 ## Extending the Scripts
 

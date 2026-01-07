@@ -1,0 +1,22 @@
+query GetProduct($id: ID\!) {
+  product(id: $id) {
+    id
+    name
+    description
+    facetValues {
+      id
+      name
+      facet {
+        id
+        name
+      }
+    }
+    variants {
+      id
+      name
+      sku
+      price
+      stockOnHand
+    }
+  }
+}

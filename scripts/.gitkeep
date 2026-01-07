@@ -1,5 +1,0 @@
-# This directory is reserved for utility scripts
-
-Executable code (Python/Bash/etc.) for tasks that require deterministic reliability or are repeatedly rewritten.
-
-Currently empty - scripts may be added in future versions.

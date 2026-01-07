@@ -10,6 +10,7 @@ Assistance complète pour le développement Vendure, générée à partir de la 
 ## Quand utiliser ce Skill
 
 Déclencher ce skill pour :
+
 - **Construction d'applications e-commerce headless** avec Node.js/TypeScript
 - **Travail avec les APIs GraphQL** pour produits, commandes ou gestion clients
 - **Implémentation d'intégrations de paiement** (Stripe, handlers personnalisés)
@@ -34,19 +35,20 @@ Ce skill est organisé en **3 sections principales** pour une navigation optimal
 
 ### 📚 references/Guides/ - Guides Pratiques (~16,000 lignes)
 
-| Fichier | Lignes | Contenu | Quand consulter |
-|---------|--------|---------|-----------------|
-| `getting-started.md` | 619 | Installation, création projet, premiers pas | **Démarrer un projet** |
-| `developer-guide.md` | 5,247 | Architecture, API Layer, Middleware, NestJS | **Comprendre l'architecture** |
-| `core-concepts.md` | 1,502 | Collections, Money, Assets, Taxes, Payment | **Concepts fondamentaux** |
-| `extending-the-dashboard.md` | 2,362 | Extensions React, routes, pages personnalisées | **Personnaliser l'admin** |
-| `how-to.md` | 2,880 | Custom fields, paiements, shipping calculators | **Tutoriels spécifiques** |
-| `storefront.md` | 1,618 | Next.js, Remix, connexion API, starters | **Créer un storefront** |
-| `deployment.md` | 1,145 | Docker, production, sécurité, HardenPlugin | **Déployer en production** |
-| `user-guide.md` | 473 | Utilisation Dashboard pour administrateurs | **Former les utilisateurs** |
-| `migrating-from-v1.md` | 302 | Breaking changes, guide de migration v1→v2 | **Migration de version** |
+| Fichier                      | Lignes | Contenu                                        | Quand consulter               |
+| ---------------------------- | ------ | ---------------------------------------------- | ----------------------------- |
+| `getting-started.md`         | 619    | Installation, création projet, premiers pas    | **Démarrer un projet**        |
+| `developer-guide.md`         | 5,247  | Architecture, API Layer, Middleware, NestJS    | **Comprendre l'architecture** |
+| `core-concepts.md`           | 1,502  | Collections, Money, Assets, Taxes, Payment     | **Concepts fondamentaux**     |
+| `extending-the-dashboard.md` | 2,362  | Extensions React, routes, pages personnalisées | **Personnaliser l'admin**     |
+| `how-to.md`                  | 2,880  | Custom fields, paiements, shipping calculators | **Tutoriels spécifiques**     |
+| `storefront.md`              | 1,618  | Next.js, Remix, connexion API, starters        | **Créer un storefront**       |
+| `deployment.md`              | 1,145  | Docker, production, sécurité, HardenPlugin     | **Déployer en production**    |
+| `user-guide.md`              | 473    | Utilisation Dashboard pour administrateurs     | **Former les utilisateurs**   |
+| `migrating-from-v1.md`       | 302    | Breaking changes, guide de migration v1→v2     | **Migration de version**      |
 
 **Commandes grep utiles :**
+
 ```bash
 grep -n "OrderProcess" references/Guides/developer-guide.md
 grep -n "Custom Fields" references/Guides/how-to.md
@@ -57,18 +59,19 @@ grep -n "Collections" references/Guides/core-concepts.md
 
 ### 📖 references/reference/ - Documentation API (~39,000 lignes)
 
-| Fichier | Lignes | Contenu | Quand consulter |
-|---------|--------|---------|-----------------|
-| `typescript-api.md` | 21,561 | **TOUT** : Classes, interfaces, strategies, services | **Recherche API TypeScript** |
-| `admin-ui-api.md` | 5,712 | API Angular (deprecated), composants legacy | **Maintenir code Angular** |
-| `core-plugins.md` | 4,527 | EmailPlugin, AssetServerPlugin, HardenPlugin, etc. | **Configurer plugins officiels** |
-| `dashboard.md` | 3,585 | React hooks, composants Dashboard, extensions | **Développer extensions React** |
-| `graphql-api.md` | 4,078 | Shop API, Admin API, queries, mutations | **Requêtes GraphQL** |
-| `reference.md` | 35 | Index/overview de la section | Vue d'ensemble |
+| Fichier             | Lignes | Contenu                                              | Quand consulter                  |
+| ------------------- | ------ | ---------------------------------------------------- | -------------------------------- |
+| `typescript-api.md` | 21,561 | **TOUT** : Classes, interfaces, strategies, services | **Recherche API TypeScript**     |
+| `admin-ui-api.md`   | 5,712  | API Angular (deprecated), composants legacy          | **Maintenir code Angular**       |
+| `core-plugins.md`   | 4,527  | EmailPlugin, AssetServerPlugin, HardenPlugin, etc.   | **Configurer plugins officiels** |
+| `dashboard.md`      | 3,585  | React hooks, composants Dashboard, extensions        | **Développer extensions React**  |
+| `graphql-api.md`    | 4,078  | Shop API, Admin API, queries, mutations              | **Requêtes GraphQL**             |
+| `reference.md`      | 35     | Index/overview de la section                         | Vue d'ensemble                   |
 
 **Fichier clé : `typescript-api.md`** - Contient TOUTES les interfaces et classes Vendure.
 
 **Commandes grep utiles :**
+
 ```bash
 grep -n "^# " references/reference/typescript-api.md | head -50  # Liste des sections
 grep -n "PaymentMethodHandler" references/reference/typescript-api.md
@@ -82,22 +85,24 @@ grep -n "useDetailPage" references/reference/dashboard.md
 
 **NOUVELLE SECTION** - Composants UI pour extensions Dashboard
 
-| Fichier | Lignes | Composants | Quand consulter |
-|---------|--------|------------|-----------------|
-| `ui.md` | 1,315 | 42 composants : Button, Dialog, Card, Badge, Popover, Tabs... | **Éléments UI de base** |
-| `form-inputs.md` | 1,082 | 11 composants : TextInput, SelectInput, CheckboxInput, DatePicker... | **Formulaires** |
-| `layout.md` | 862 | DetailPage, ListPage, PageLayout, TabsLayout | **Structure de pages** |
-| `framework.md` | 516 | DataTable, AssetGallery, PaginationControls | **Affichage de données** |
-| `VENDURE_UI_COMPONENTS_BASE.md` | 724 | Documentation de base des composants | **Référence rapide** |
+| Fichier                         | Lignes | Composants                                                           | Quand consulter          |
+| ------------------------------- | ------ | -------------------------------------------------------------------- | ------------------------ |
+| `ui.md`                         | 1,315  | 42 composants : Button, Dialog, Card, Badge, Popover, Tabs...        | **Éléments UI de base**  |
+| `form-inputs.md`                | 1,082  | 11 composants : TextInput, SelectInput, CheckboxInput, DatePicker... | **Formulaires**          |
+| `layout.md`                     | 862    | DetailPage, ListPage, PageLayout, TabsLayout                         | **Structure de pages**   |
+| `framework.md`                  | 516    | DataTable, AssetGallery, PaginationControls                          | **Affichage de données** |
+| `VENDURE_UI_COMPONENTS_BASE.md` | 724    | Documentation de base des composants                                 | **Référence rapide**     |
 
 **Import standard :**
+
 ```tsx
-import { Button, Card, Dialog, Badge } from '@vendure/dashboard';
-import { TextInput, SelectInput } from '@vendure/dashboard';
-import { DetailPage, ListPage } from '@vendure/dashboard';
+import { Button, Card, Dialog, Badge } from "@vendure/dashboard";
+import { TextInput, SelectInput } from "@vendure/dashboard";
+import { DetailPage, ListPage } from "@vendure/dashboard";
 ```
 
 **Commandes grep utiles :**
+
 ```bash
 grep -A 20 "^## Button" references/UI/ui.md
 grep -A 30 "TextInput" references/UI/form-inputs.md
@@ -129,21 +134,21 @@ grep -n "DetailPage" references/UI/layout.md
 
 ## Liens Rapides par Tâche
 
-| Tâche | Fichier de référence |
-|-------|---------------------|
-| Démarrer un projet | `Guides/getting-started.md` |
-| Afficher des prix | `Guides/core-concepts.md` |
-| Accepter des paiements | `reference/core-plugins.md` |
-| Envoyer des emails | `reference/core-plugins.md` |
-| Créer un plugin | `Guides/developer-guide.md` |
-| Upload de fichiers | `Guides/developer-guide.md` |
-| Valider commandes | `reference/typescript-api.md` |
-| Requêtes GraphQL | `reference/graphql-api.md` |
-| Stocker des prix | `Guides/core-concepts.md` |
-| Installer Dashboard | `Guides/getting-started.md` |
-| Créer page Dashboard | `UI/layout.md` + `Guides/extending-the-dashboard.md` |
-| Composants formulaire | `UI/form-inputs.md` |
-| DataTable | `UI/framework.md` |
+| Tâche                  | Fichier de référence                                 |
+| ---------------------- | ---------------------------------------------------- |
+| Démarrer un projet     | `Guides/getting-started.md`                          |
+| Afficher des prix      | `Guides/core-concepts.md`                            |
+| Accepter des paiements | `reference/core-plugins.md`                          |
+| Envoyer des emails     | `reference/core-plugins.md`                          |
+| Créer un plugin        | `Guides/developer-guide.md`                          |
+| Upload de fichiers     | `Guides/developer-guide.md`                          |
+| Valider commandes      | `reference/typescript-api.md`                        |
+| Requêtes GraphQL       | `reference/graphql-api.md`                           |
+| Stocker des prix       | `Guides/core-concepts.md`                            |
+| Installer Dashboard    | `Guides/getting-started.md`                          |
+| Créer page Dashboard   | `UI/layout.md` + `Guides/extending-the-dashboard.md` |
+| Composants formulaire  | `UI/form-inputs.md`                                  |
+| DataTable              | `UI/framework.md`                                    |
 
 ## Conseils de Navigation
 
@@ -196,7 +201,7 @@ references/
 
 ### scripts/
 
-Scripts d'automatisation pour le développement et les tests Vendure marketplace multi-vendeurs.
+Scripts utilitaires pour interagir avec les APIs GraphQL de Vendure.
 
 #### Prérequis
 
@@ -206,131 +211,26 @@ Scripts d'automatisation pour le développement et les tests Vendure marketplace
 
 #### Scripts disponibles
 
-| Script | Description |
-|--------|-------------|
-| `full-setup.sh` | Configuration complète en une commande (vendeur + bio + catalogue) |
-| `generate-siret.sh` | Génère un numéro SIRET français valide (algorithme Luhn) |
-| `create-vendor-account.sh` | Crée un compte vendeur complet (inscription → approbation) |
-| `request-bio-certification.sh` | Demande et approuve une certification bio |
-| `seed-vendor-catalog.sh` | Crée des produits dans le catalogue d'un vendeur |
+| Script     | Description                                |
+| ---------- | ------------------------------------------ |
 | `login.sh` | Authentification et aide aux requêtes curl |
-| `query.sh` | Exécution simplifiée de requêtes GraphQL |
+| `query.sh` | Exécution simplifiée de requêtes GraphQL   |
 
-#### Workflow complet automatisé
+#### `login.sh` - Authentification et aide curl
 
-```bash
-# Option 1 : Script unifié (recommandé)
-./full-setup.sh --bio -n 5
+Script d'authentification pour obtenir un token JWT et faciliter les requêtes curl.
 
-# Option 2 : Scripts séparés
-./create-vendor-account.sh && \
-./request-bio-certification.sh && \
-./seed-vendor-catalog.sh -n 5 --bio
-```
-
-#### Détail des scripts
-
-**`full-setup.sh`** - Configuration complète en une commande
-
-Orchestre automatiquement : création vendeur → certification bio → catalogue produits.
-
-| Option | Alias | Description |
-|--------|-------|-------------|
-| `--bio` | `-b` | Ajouter certification bio |
-| `--count N` | `-n` | Créer N produits aléatoires |
-| `--mix` | `-m` | Produits bio + conventionnels |
-| `--no-approve` | - | Ne pas auto-approuver |
-| `--verbose` | `-v` | Mode détaillé |
-
-```bash
-./full-setup.sh                      # Vendeur + Courgette
-./full-setup.sh --bio                # Vendeur + certif bio + Courgette
-./full-setup.sh -n 5                 # Vendeur + 5 produits aléatoires
-./full-setup.sh --bio -n 10          # Vendeur + certif bio + 10 produits
-./full-setup.sh --bio -n 5 --mix     # Vendeur + certif bio + 5 produits (bio+conv)
-```
-
-**`generate-siret.sh`** - Génère un SIRET valide
-```bash
-./generate-siret.sh              # Génère un SIRET aléatoire
-./generate-siret.sh 12345678     # Complète un SIREN existant
-```
-
-**`create-vendor-account.sh`** - Inscription vendeur (9 étapes)
-
-Crée un compte vendeur complet : inscription → vérification email → profil → approbation.
-
-| Option | Alias | Description |
-|--------|-------|-------------|
-| `--no-approve` | `-n` | Arrête avant approbation superadmin |
-| `--verbose` | `-v` | Mode détaillé |
-| `--help` | `-h` | Affiche l'aide |
-
-```bash
-./create-vendor-account.sh         # Génère email/password aléatoires
-./create-vendor-account.sh -v      # Mode détaillé
-./create-vendor-account.sh -n      # Sans approbation auto
-# Sauvegarde credentials dans last-account.json
-```
-
-**`request-bio-certification.sh`** - Certification bio
-
-Demande et approuve une certification bio pour un vendeur.
-
-| Option | Alias | Description |
-|--------|-------|-------------|
-| `--vendor-email` | `-e` | Email du vendeur |
-| `--vendor-password` | `-p` | Mot de passe du vendeur |
-| `--validity N` | `-V` | Durée de validité en mois (défaut: 12) |
-| `--no-approve` | `-n` | Sans approbation auto |
-| `--verbose` | `-v` | Mode détaillé |
-| `--help` | `-h` | Affiche l'aide |
-
-```bash
-./request-bio-certification.sh           # Utilise last-account.json
-./request-bio-certification.sh -V 24     # Validité 24 mois
-./request-bio-certification.sh -n        # Sans approbation auto
-./request-bio-certification.sh -e x@y.com -p pwd  # Credentials manuels
-```
-
-**`seed-vendor-catalog.sh`** - Création de produits
-
-Crée des produits dans le catalogue d'un vendeur à partir des **produits autorisés par les superadmins** (récupérés via GraphQL).
-
-| Option | Alias | Description |
-|--------|-------|-------------|
-| `--count N` | `-n` | Crée N produits aléatoires parmi les autorisés |
-| `--all` | - | Crée tous les produits autorisés |
-| `--bio` | - | Produits bio uniquement (nécessite certification) |
-| `--mix` | - | Crée version bio + conventionnelle de chaque produit |
-| `--vendor-email` | - | Email du vendeur (sinon utilise last-account.json) |
-| `--vendor-password` | - | Mot de passe du vendeur |
-| `--verbose` | `-v` | Mode détaillé |
-
-> **Note** : Si `--count N` dépasse le nombre de produits disponibles, le script crée tous les produits avec un warning.
-
-```bash
-./seed-vendor-catalog.sh              # Crée Courgette uniquement (défaut)
-./seed-vendor-catalog.sh -n 3         # 3 produits aléatoires
-./seed-vendor-catalog.sh -n 5 --bio   # 5 produits bio aléatoires
-./seed-vendor-catalog.sh -n 10 --mix  # 10 produits (bio + conventionnel)
-./seed-vendor-catalog.sh --all        # Tous les produits autorisés
-./seed-vendor-catalog.sh --all --mix  # Tous en bio + conventionnel
-```
-
-**`login.sh`** - Authentification et aide curl
-
-| Option | Alias | Description |
-|--------|-------|-------------|
-| `--from-last` | `-l` | Utilise last-account.json |
-| `--superadmin` | `-s` | Mode superadmin |
-| `--email` | `-e` | Email de connexion |
-| `--password` | `-p` | Mot de passe |
-| `--env` | `-E` | Chemin .env |
-| `--export` | `-x` | Affiche exports shell |
-| `--curl-example` | `-c` | Exemple curl complet |
-| `--quiet` | `-q` | Mode silencieux |
-| `--verbose` | `-v` | Mode verbeux |
+| Option           | Alias | Description               |
+| ---------------- | ----- | ------------------------- |
+| `--from-last`    | `-l`  | Utilise last-account.json |
+| `--superadmin`   | `-s`  | Mode superadmin           |
+| `--email`        | `-e`  | Email de connexion        |
+| `--password`     | `-p`  | Mot de passe              |
+| `--env`          | `-E`  | Chemin .env               |
+| `--export`       | `-x`  | Affiche exports shell     |
+| `--curl-example` | `-c`  | Exemple curl complet      |
+| `--quiet`        | `-q`  | Mode silencieux           |
+| `--verbose`      | `-v`  | Mode verbeux              |
 
 ```bash
 ./login.sh -l                 # Login avec last-account.json
@@ -343,34 +243,34 @@ Crée des produits dans le catalogue d'un vendeur à partir des **produits autor
 
 **`query.sh`** - Requêtes GraphQL simplifiées
 
-| Option | Alias | Description |
-|--------|-------|-------------|
-| `--vars` | `-V` | Variables GraphQL JSON (remplace tout) |
-| `--set` | - | Modifier une variable (merge jq) |
-| `--file` | `-f` | Fichier .graphql |
-| `--superadmin` | `-s` | Mode superadmin |
-| `--env` | `-e` | Chemin .env |
-| `--raw` | `-r` | Sortie JSON brute |
-| `--data` | `-d` | Affiche seulement .data |
-| `--clear-cache` | `-c` | Force reconnexion |
-| `--timeout` | `-t` | Timeout en secondes |
-| `--history` | `-H` | Affiche les 10 dernières requêtes |
-| `--last` | `-L` | Ré-exécute la dernière requête |
-| `--replay N` | `-R` | Ré-exécute la requête #N de l'historique |
-| `--inspect N` | `-I` | Affiche query #N + variables (sans exécuter) |
-| `--save NAME` | `-S` | Sauvegarde dans `queries/NAME.graphql` |
-| `--shop` | `-p` | Utilise `/shop-api` au lieu de `/admin-api` |
-| `--time` | `-T` | Affiche le temps d'exécution |
-| `--diff "OPTS"` | - | Compare 2 exécutions (avant/après OPTS) |
-| `--diff-only` | - | Avec --diff: affiche uniquement les valeurs changées |
-| `--no-fail` | - | Ne pas exit 1 sur erreur GraphQL (continuer malgré les erreurs) |
-| `--dry-run` | - | Affiche la requête sans l'exécuter (pas d'auth) |
-| `--curl` | - | Génère la commande curl équivalente (copier-coller) |
-| `--jq FILTER` | `-j` | Appliquer un filtre jq sur le résultat |
-| `--assert EXPR` | `-a` | Valider une condition jq (exit 1 si fausse) |
-| `--quiet` | `-q` | Mode silencieux (supprime tous les logs stderr) |
-| `--output FILE` | `-o` | Écrire le résultat dans un fichier |
-| `--verbose` | `-v` | Mode verbeux |
+| Option          | Alias | Description                                                     |
+| --------------- | ----- | --------------------------------------------------------------- |
+| `--vars`        | `-V`  | Variables GraphQL JSON (remplace tout)                          |
+| `--set`         | -     | Modifier une variable (merge jq)                                |
+| `--file`        | `-f`  | Fichier .graphql                                                |
+| `--superadmin`  | `-s`  | Mode superadmin                                                 |
+| `--env`         | `-e`  | Chemin .env                                                     |
+| `--raw`         | `-r`  | Sortie JSON brute                                               |
+| `--data`        | `-d`  | Affiche seulement .data                                         |
+| `--clear-cache` | `-c`  | Force reconnexion                                               |
+| `--timeout`     | `-t`  | Timeout en secondes                                             |
+| `--history`     | `-H`  | Affiche les 10 dernières requêtes                               |
+| `--last`        | `-L`  | Ré-exécute la dernière requête                                  |
+| `--replay N`    | `-R`  | Ré-exécute la requête #N de l'historique                        |
+| `--inspect N`   | `-I`  | Affiche query #N + variables (sans exécuter)                    |
+| `--save NAME`   | `-S`  | Sauvegarde dans `queries/NAME.graphql`                          |
+| `--shop`        | `-p`  | Utilise `/shop-api` au lieu de `/admin-api`                     |
+| `--time`        | `-T`  | Affiche le temps d'exécution                                    |
+| `--diff "OPTS"` | -     | Compare 2 exécutions (avant/après OPTS)                         |
+| `--diff-only`   | -     | Avec --diff: affiche uniquement les valeurs changées            |
+| `--no-fail`     | -     | Ne pas exit 1 sur erreur GraphQL (continuer malgré les erreurs) |
+| `--dry-run`     | -     | Affiche la requête sans l'exécuter (pas d'auth)                 |
+| `--curl`        | -     | Génère la commande curl équivalente (copier-coller)             |
+| `--jq FILTER`   | `-j`  | Appliquer un filtre jq sur le résultat                          |
+| `--assert EXPR` | `-a`  | Valider une condition jq (exit 1 si fausse)                     |
+| `--quiet`       | `-q`  | Mode silencieux (supprime tous les logs stderr)                 |
+| `--output FILE` | `-o`  | Écrire le résultat dans un fichier                              |
+| `--verbose`     | `-v`  | Mode verbeux                                                    |
 
 ```bash
 ./query.sh '{ me { id } }'            # Requête simple
@@ -542,6 +442,7 @@ Le système d'historique et replay permet de déboguer efficacement les requête
 ```
 
 **Cas d'usage typiques :**
+
 - **Inspecter avant de rejouer** : voir la query complète et ses variables avec `-I`
 - **Prévisualiser sans exécuter** : utiliser `--dry-run` pour voir query/variables/auth/endpoint sans connexion
 - **Générer curl** : utiliser `--curl` pour obtenir une commande curl copier-coller (Postman, CI/CD, partage)
@@ -562,7 +463,7 @@ Le système d'historique et replay permet de déboguer efficacement les requête
 - `.token-cache.vendor` : Cache des tokens vendeur (30 min)
 - `.token-cache.superadmin` : Cache des tokens superadmin (30 min)
 - `.query-history` : Historique des 50 dernières requêtes GraphQL
-- `queries/` : Requêtes sauvegardées avec `--save`
+- `queries/` : Requêtes GraphQL sauvegardées avec `--save`
 
 ## Notes
 
@@ -575,6 +476,7 @@ Le système d'historique et replay permet de déboguer efficacement les requête
 ## Mise à jour
 
 Pour rafraîchir ce skill avec une documentation mise à jour :
+
 1. Re-scraper la documentation officielle docs.vendure.io
 2. Réorganiser les fichiers dans la structure Guides/reference/UI
 3. Mettre à jour les compteurs de lignes dans ce SKILL.md

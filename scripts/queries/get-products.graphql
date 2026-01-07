@@ -1,0 +1,15 @@
+query {
+  products(options: { take: 3 }) {
+    totalItems
+    items {
+      id
+      name
+      slug
+      variants {
+        id
+        sku
+        price
+      }
+    }
+  }
+}
